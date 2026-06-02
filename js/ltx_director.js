@@ -3008,6 +3008,10 @@ class TimelineEditor {
     exportBtn.className = "pr-mini-btn";
     exportBtn.textContent = "Export";
 
+    const copyBtn = document.createElement("button");
+    copyBtn.className = "pr-mini-btn";
+    copyBtn.textContent = "Copy";
+
     const closeBtn = document.createElement("button");
     closeBtn.className = "pr-mini-btn";
     closeBtn.textContent = "Close";
@@ -3017,6 +3021,7 @@ class TimelineEditor {
     actions.appendChild(modeExportBtn);
     actions.appendChild(loadFileBtn);
     actions.appendChild(importBtn);
+    actions.appendChild(copyBtn);
     actions.appendChild(exportBtn);
     actions.appendChild(closeBtn);
     toolbar.appendChild(title);
@@ -3053,6 +3058,7 @@ class TimelineEditor {
       textarea.placeholder = isImport ? "GLOBAL: Describe global prompt here.\n\nVIDEO:\nwidth: 1280\nheight: 720\ntotal_duration: 40\n\nCLIP 1 | 3s\nDescribe clip 1 here.\n\nCLIP 2 | 2.5s\nDescribe clip 2 here." : "";
       loadFileBtn.style.display = isImport ? "" : "none";
       importBtn.style.display = isImport ? "" : "none";
+      copyBtn.style.display = isImport ? "none" : "";
       exportBtn.style.display = isImport ? "none" : "";
       setModeButtonState(modeImportBtn, isImport);
       setModeButtonState(modeExportBtn, !isImport);
@@ -3105,6 +3111,20 @@ class TimelineEditor {
       }
       this.exportShotScript(textarea.value);
       setError("", "error");
+    });
+
+    copyBtn.addEventListener("click", async () => {
+      if (!textarea.value.trim()) {
+        setError("Nothing to copy.", "error");
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(textarea.value);
+        setError("Copied to clipboard.", "warning");
+      } catch (err) {
+        console.error("[LTXDirector] Clipboard copy failed", err);
+        setError("Copy failed. Your browser may block clipboard access.", "error");
+      }
     });
 
     modeImportBtn.addEventListener("click", () => setMode("import"));
