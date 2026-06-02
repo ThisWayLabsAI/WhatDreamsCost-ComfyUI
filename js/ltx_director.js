@@ -379,7 +379,28 @@ const STYLES = `
     line-height: 1.5;
     white-space: pre-wrap;
   }
+  .pr-shot-script-error-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .pr-shot-script-error-message {
+    flex: 1;
+    min-width: 0;
+    white-space: pre-wrap;
+  }
+  .pr-shot-script-warning-action {
+    display: none;
+  }
+  .pr-shot-script-warning-action.is-visible {
+    display: inline-flex;
+  }
   .pr-shot-script-errors:empty {
+    display: none;
+  }
+  .pr-shot-script-errors.is-empty {
     display: none;
   }
   .pr-shot-script-errors.is-warning {
@@ -2994,6 +3015,10 @@ class TimelineEditor {
     loadFileBtn.textContent = "Load .txt";
     loadFileBtn.addEventListener("click", () => fileInput.click());
 
+    const clearTextBtn = document.createElement("button");
+    clearTextBtn.className = "pr-mini-btn";
+    clearTextBtn.textContent = "Clear Text";
+
     const importBtn = document.createElement("button");
     importBtn.className = "pr-mini-btn";
     importBtn.textContent = "Apply to Timeline";
@@ -3014,6 +3039,7 @@ class TimelineEditor {
     actions.appendChild(modeImportBtn);
     actions.appendChild(modeExportBtn);
     actions.appendChild(loadFileBtn);
+    actions.appendChild(clearTextBtn);
     actions.appendChild(importBtn);
     actions.appendChild(copyBtn);
     actions.appendChild(exportBtn);
@@ -3029,14 +3055,31 @@ class TimelineEditor {
 
     const errorBox = document.createElement("div");
     errorBox.className = "pr-shot-script-errors";
+    errorBox.classList.add("is-empty");
+    const errorContent = document.createElement("div");
+    errorContent.className = "pr-shot-script-error-content";
+    const errorMessage = document.createElement("span");
+    errorMessage.className = "pr-shot-script-error-message";
+    const applyAnywayBtn = document.createElement("button");
+    applyAnywayBtn.className = "pr-mini-btn pr-shot-script-warning-action";
+    applyAnywayBtn.textContent = "Apply Anyways";
+    errorContent.appendChild(errorMessage);
+    errorContent.appendChild(applyAnywayBtn);
+    errorBox.appendChild(errorContent);
 
     const textarea = document.createElement("textarea");
     textarea.className = "pr-shot-script-textarea";
     textarea.placeholder = "GLOBAL: Describe global prompt here.\n\nVIDEO:\nwidth: 1280\nheight: 720\ntotal_duration: 40\n\nCLIP 1 | 3s\nDescribe clip 1 here.\n\nCLIP 2 | 2.5s\nDescribe clip 2 here.";
 
-    const setError = (message = "", kind = "error") => {
+    let showApplyAnywayAction = false;
+    const setError = (message = "", kind = "error", options = {}) => {
+      const showApplyAnyway = Boolean(options.showApplyAnyway && kind === "warning" && message);
+      showApplyAnywayAction = showApplyAnyway;
+      errorBox.classList.toggle("is-empty", !message);
       errorBox.classList.toggle("is-warning", kind === "warning");
-      errorBox.textContent = message;
+      errorMessage.textContent = message;
+      applyAnywayBtn.classList.toggle("is-visible", showApplyAnyway);
+      applyAnywayBtn.disabled = !showApplyAnyway;
     };
     const setModeButtonState = (btn, active) => {
       btn.style.opacity = active ? "1" : "0.7";
@@ -3051,6 +3094,7 @@ class TimelineEditor {
       textarea.readOnly = !isImport;
       textarea.placeholder = isImport ? "GLOBAL: Describe global prompt here.\n\nVIDEO:\nwidth: 1280\nheight: 720\ntotal_duration: 40\n\nCLIP 1 | 3s\nDescribe clip 1 here.\n\nCLIP 2 | 2.5s\nDescribe clip 2 here." : "";
       loadFileBtn.style.display = isImport ? "" : "none";
+      clearTextBtn.style.display = isImport ? "" : "none";
       importBtn.style.display = isImport ? "" : "none";
       copyBtn.style.display = isImport ? "none" : "";
       exportBtn.style.display = isImport ? "none" : "";
@@ -3080,13 +3124,40 @@ class TimelineEditor {
       }
     });
 
+    clearTextBtn.addEventListener("click", () => {
+      textarea.value = "";
+      setError("", "error");
+      textarea.focus();
+    });
+
+    textarea.addEventListener("input", () => {
+      if (showApplyAnywayAction) {
+        setError("", "error");
+      }
+    });
+
     importBtn.addEventListener("click", () => {
       try {
-        const warningMessage = this.importShotScript(textarea.value);
-        if (warningMessage) {
-          setError(`Warning: ${warningMessage}`, "warning");
+        const importResult = this.importShotScript(textarea.value);
+        if (importResult.warningCode === "video_duration_mismatch") {
+          setError(`Warning: ${importResult.message}`, "warning", { showApplyAnyway: true });
           return;
         }
+        this.closeShotScriptImportModal();
+      } catch (err) {
+        if (ShotScriptParseError && err instanceof ShotScriptParseError) {
+          setError(formatShotScriptParseErrors(err.errors), "error");
+          return;
+        }
+        console.error("[LTXDirector] Clip script import failed", err);
+        setError("Import failed. Check the browser console for details.", "error");
+      }
+    });
+
+    applyAnywayBtn.addEventListener("click", () => {
+      if (!showApplyAnywayAction) return;
+      try {
+        this.importShotScript(textarea.value, { ignoreVideoDurationMismatch: true });
         this.closeShotScriptImportModal();
       } catch (err) {
         if (ShotScriptParseError && err instanceof ShotScriptParseError) {
@@ -3155,12 +3226,24 @@ class TimelineEditor {
     }
   }
 
-  importShotScript(text) {
+  importShotScript(text, options = {}) {
     const { parseShotScriptDocument } = getShotScriptApi();
     if (!parseShotScriptDocument) {
       throw new Error("Clip script parser is unavailable.");
     }
     const parsed = parseShotScriptDocument(text);
+    const shotDurationTotal = parsed.shots.reduce((sum, shot) => sum + shot.duration, 0);
+    const metadataDuration = parsed.video?.totalDuration;
+    const ignoreVideoDurationMismatch = options.ignoreVideoDurationMismatch === true;
+    if (Number.isFinite(metadataDuration) && metadataDuration > 0) {
+      const delta = Math.abs(metadataDuration - shotDurationTotal);
+      if (delta > 0.001 && !ignoreVideoDurationMismatch) {
+        return {
+          warningCode: "video_duration_mismatch",
+          message: `VIDEO total_duration (${metadataDuration}s) does not match total CLIP duration (${Number(shotDurationTotal.toFixed(3))}s).`,
+        };
+      }
+    }
     const frameRate = this.getFrameRate();
     let cursorFrames = 0;
     const importedSegments = parsed.shots.map((shot) => {
@@ -3220,15 +3303,10 @@ class TimelineEditor {
     this.setDurationFramesValue(Math.max(1, importedEnd, audioEnd));
     this.updateUIFromSelection();
     this.commitChanges();
-    const shotDurationTotal = parsed.shots.reduce((sum, shot) => sum + shot.duration, 0);
-    const metadataDuration = parsed.video?.totalDuration;
-    if (Number.isFinite(metadataDuration) && metadataDuration > 0) {
-      const delta = Math.abs(metadataDuration - shotDurationTotal);
-      if (delta > 0.001) {
-        return `VIDEO total_duration (${metadataDuration}s) does not match total CLIP duration (${Number(shotDurationTotal.toFixed(3))}s).`;
-      }
-    }
-    return "";
+    return {
+      warningCode: "",
+      message: "",
+    };
   }
 
   buildShotScriptText() {
