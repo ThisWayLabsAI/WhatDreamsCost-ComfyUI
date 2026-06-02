@@ -393,6 +393,10 @@ class LTXDirector(io.ComfyNode):
                     "global_prompt", multiline=True, default="",
                     tooltip="Conditions the entire video. Anchors persistent characters, objects, and scene context.",
                 ),
+                io.Boolean.Input(
+                    "use_global_prompt", default=True, optional=True,
+                    tooltip="When disabled, global_prompt text is preserved but excluded from generation.",
+                ),
                 io.Int.Input(
                     "duration_frames", default=120, min=1, max=10000, step=1,
                     tooltip="Total timeline length in pixel-space frames. Used by the editor for visual scale only.",
@@ -469,7 +473,7 @@ class LTXDirector(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, model, clip, global_prompt, duration_frames, duration_seconds,
+    def execute(cls, model, clip, global_prompt, use_global_prompt, duration_frames, duration_seconds,
                 timeline_data, local_prompts, segment_lengths, guide_strength="", epsilon=1e-3,
                 frame_rate=24, display_mode="seconds",
                 custom_width=768, custom_height=512, resize_method="maintain aspect ratio",
@@ -571,8 +575,9 @@ class LTXDirector(io.ComfyNode):
         else:
             latent = optional_latent
 
+        effective_global_prompt = global_prompt if use_global_prompt else ""
         patched, conditioning = _encode_relay(
-            model, clip, latent, global_prompt, local_prompts, segment_lengths, epsilon,
+            model, clip, latent, effective_global_prompt, local_prompts, segment_lengths, epsilon,
         )
 
         # --- Build Audio Output ---
