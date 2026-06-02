@@ -2270,6 +2270,8 @@ class TimelineEditor {
     closeBtn.textContent = "Close";
     closeBtn.addEventListener("click", () => this.closePromptEditorModal());
     const getOrderedSegments = () => [...this.timeline.segments].sort((a, b) => a.start - b.start);
+    let modalClipIndexInput = null;
+    let modalClipTotal = null;
 
     if (!isGlobal) {
       const clipNav = document.createElement("div");
@@ -2339,9 +2341,9 @@ class TimelineEditor {
       updateNavButtons();
       headerRight.appendChild(prevBtn);
       headerRight.appendChild(nextBtn);
- 
-      var modalClipIndexInput = clipIndexInput;
-      var modalClipTotal = clipTotal;
+
+      modalClipIndexInput = clipIndexInput;
+      modalClipTotal = clipTotal;
     } else {
       title.textContent = "Global Prompt";
     }
