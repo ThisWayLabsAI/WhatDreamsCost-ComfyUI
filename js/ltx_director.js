@@ -180,6 +180,8 @@ const STYLES = `
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(3px);
+    -webkit-backdrop-filter: blur(3px);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -193,13 +195,17 @@ const STYLES = `
     resize: both;
     overflow: auto;
     background: #1a1a1a;
-    border: 1px solid #333;
+    border: 1px solid #606060;
     border-radius: 8px;
     padding: 10px;
     display: flex;
     flex-direction: column;
     gap: 8px;
     box-sizing: border-box;
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.08),
+      0 16px 38px rgba(0, 0, 0, 0.55),
+      0 0 18px rgba(0, 0, 0, 0.32);
   }
   .pr-prompt-modal-header {
     display: flex;
@@ -318,7 +324,7 @@ const STYLES = `
     resize: both;
     overflow: auto;
     background: #1a1a1a;
-    border: 1px solid #333;
+    border: 1px solid #666;
     border-radius: 8px;
     padding: 12px;
     display: flex;
@@ -386,7 +392,10 @@ const STYLES = `
     flex-direction: column;
     gap: 12px;
     box-sizing: border-box;
-    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.45);
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.1),
+      0 14px 34px rgba(0, 0, 0, 0.48),
+      0 0 14px rgba(0, 0, 0, 0.3);
   }
   .pr-confirm-modal-title {
     color: #f4f4f4;
