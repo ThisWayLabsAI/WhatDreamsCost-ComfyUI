@@ -1349,15 +1349,10 @@ class TimelineEditor {
     addTextBtn.innerHTML = `${ICONS.text} Add Text`;
     addTextBtn.addEventListener("click", () => this.addTextSegmentFreeSpace());
 
-    const importShotScriptBtn = document.createElement("button");
-    importShotScriptBtn.className = "pr-btn";
-    importShotScriptBtn.textContent = "Import Clip Script";
-    importShotScriptBtn.addEventListener("click", () => this.openShotScriptImportModal());
-
-    const exportShotScriptBtn = document.createElement("button");
-    exportShotScriptBtn.className = "pr-btn";
-    exportShotScriptBtn.textContent = "View/Export Clip Script";
-    exportShotScriptBtn.addEventListener("click", () => this.openShotScriptExportModal());
+    const clipScriptModalBtn = document.createElement("button");
+    clipScriptModalBtn.className = "pr-btn";
+    clipScriptModalBtn.textContent = "Clip Script (View/Import/Export)";
+    clipScriptModalBtn.addEventListener("click", () => this.openShotScriptImportModal());
 
     const deleteBtn = document.createElement("button");
     deleteBtn.className = "pr-btn pr-btn-danger";
@@ -1394,8 +1389,7 @@ class TimelineEditor {
     actionGroup.appendChild(uploadBtn);
     actionGroup.appendChild(addTextBtn);
     actionGroup.appendChild(uploadAudioBtn);
-    actionGroup.appendChild(importShotScriptBtn);
-    actionGroup.appendChild(exportShotScriptBtn);
+    actionGroup.appendChild(clipScriptModalBtn);
     toolbar.appendChild(actionGroup);
 
     const rightGroup = document.createElement("div");
