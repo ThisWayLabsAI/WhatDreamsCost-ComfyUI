@@ -473,12 +473,12 @@ class LTXDirector(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, model, clip, global_prompt, use_global_prompt, duration_frames, duration_seconds,
+    def execute(cls, model, clip, global_prompt, duration_frames, duration_seconds,
                 timeline_data, local_prompts, segment_lengths, guide_strength="", epsilon=1e-3,
                 frame_rate=24, display_mode="seconds",
                 custom_width=768, custom_height=512, resize_method="maintain aspect ratio",
                 divisible_by=32, img_compression=0, audio_vae=None, optional_latent=None,
-                use_custom_audio=False) -> io.NodeOutput:
+                use_custom_audio=False, use_global_prompt=True) -> io.NodeOutput:
 
         # --- Build guide_data from image segments FIRST (to derive output dimensions) ---
         guide_data = {"images": [], "insert_frames": [], "strengths": [], "frame_rate": frame_rate}
