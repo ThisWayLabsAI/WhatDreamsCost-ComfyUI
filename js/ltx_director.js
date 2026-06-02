@@ -42,7 +42,6 @@ const STYLES = `
     flex-direction: column;
     gap: 8px;
     width: 100%;
-    height: 100%;
     box-sizing: border-box;
     padding-bottom: 4px;
   }
@@ -1302,11 +1301,6 @@ class TimelineEditor {
     deleteBtn.innerHTML = `${ICONS.trash} Delete`;
     deleteBtn.addEventListener("click", () => this.deleteSelectedSegment());
 
-    const trimBtn = document.createElement("button");
-    trimBtn.className = "pr-btn";
-    trimBtn.textContent = "Trim";
-    trimBtn.addEventListener("click", () => this.trimDurationToLastClip());
-
     const trimToLastBtn = document.createElement("button");
     trimToLastBtn.className = "pr-btn";
     trimToLastBtn.textContent = "Trim to Last Clip";
@@ -1703,7 +1697,6 @@ class TimelineEditor {
     const timelineActions = document.createElement("div");
     timelineActions.className = "pr-timeline-actions";
     timelineActions.appendChild(deleteBtn);
-    timelineActions.appendChild(trimBtn);
     timelineActions.appendChild(rippleDeleteBtn);
     timelineActions.appendChild(trimToLastBtn);
     timelineActions.appendChild(resetTimelineBtn);
