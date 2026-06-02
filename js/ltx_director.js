@@ -246,6 +246,12 @@ const STYLES = `
     text-align: center;
     box-sizing: border-box;
   }
+  .pr-prompt-modal-nav-btn {
+    min-width: 46px;
+    padding: 4px 8px;
+    font-size: 10px;
+    line-height: 1.1;
+  }
   .pr-prompt-modal-header-right {
     display: flex;
     align-items: center;
@@ -375,6 +381,11 @@ const STYLES = `
   }
   .pr-shot-script-errors:empty {
     display: none;
+  }
+  .pr-shot-script-errors.is-warning {
+    background: #2d260f;
+    color: #ffdca4;
+    border-color: #7d6130;
   }
   .pr-shot-script-hint {
     color: #bcbcbc;
@@ -2624,6 +2635,8 @@ class TimelineEditor {
     const getOrderedSegments = () => [...this.timeline.segments].sort((a, b) => a.start - b.start);
     let modalClipIndexInput = null;
     let modalClipTotal = null;
+    let modalPrevClipBtn = null;
+    let modalNextClipBtn = null;
 
     if (!isGlobal) {
       const clipNav = document.createElement("div");
@@ -2636,9 +2649,17 @@ class TimelineEditor {
       clipIndexInput.step = "1";
       clipIndexInput.className = "pr-prompt-modal-clip-input";
       const clipTotal = document.createElement("span");
+      const prevClipBtn = document.createElement("button");
+      prevClipBtn.className = "pr-mini-btn pr-prompt-modal-nav-btn";
+      prevClipBtn.textContent = "Prev";
+      const nextClipBtn = document.createElement("button");
+      nextClipBtn.className = "pr-mini-btn pr-prompt-modal-nav-btn";
+      nextClipBtn.textContent = "Next";
       clipNav.appendChild(clipLabel);
       clipNav.appendChild(clipIndexInput);
       clipNav.appendChild(clipTotal);
+      clipNav.appendChild(prevClipBtn);
+      clipNav.appendChild(nextClipBtn);
       title.appendChild(clipNav);
 
       const navigateToClip = (targetSeg) => {
@@ -2670,9 +2691,25 @@ class TimelineEditor {
         if (e.key === "Enter") applyClipNavigationInput();
       });
       clipIndexInput.addEventListener("blur", () => refreshSegmentMeta());
+      prevClipBtn.addEventListener("click", () => {
+        const liveSeg = getLiveSeg();
+        if (!liveSeg) return;
+        const ordered = getOrderedSegments();
+        const clipIndex = ordered.findIndex(s => s.id === liveSeg.id) + 1;
+        if (clipIndex > 1) navigateToClipIndex(clipIndex - 1);
+      });
+      nextClipBtn.addEventListener("click", () => {
+        const liveSeg = getLiveSeg();
+        if (!liveSeg) return;
+        const ordered = getOrderedSegments();
+        const clipIndex = ordered.findIndex(s => s.id === liveSeg.id) + 1;
+        if (clipIndex > 0 && clipIndex < ordered.length) navigateToClipIndex(clipIndex + 1);
+      });
 
       modalClipIndexInput = clipIndexInput;
       modalClipTotal = clipTotal;
+      modalPrevClipBtn = prevClipBtn;
+      modalNextClipBtn = nextClipBtn;
     } else {
       title.textContent = "Global Prompt";
     }
@@ -2705,6 +2742,12 @@ class TimelineEditor {
       }
       if (modalClipTotal) {
         modalClipTotal.textContent = `of ${ordered.length}`;
+      }
+      if (modalPrevClipBtn) {
+        modalPrevClipBtn.disabled = clipIndex <= 1;
+      }
+      if (modalNextClipBtn) {
+        modalNextClipBtn.disabled = clipIndex >= ordered.length;
       }
       if (clipLengthUnit) {
         const inFrames = this.displayModeWidget?.value === "frames";
@@ -2958,16 +3001,17 @@ class TimelineEditor {
 
     const hint = document.createElement("div");
     hint.className = "pr-shot-script-hint";
-    hint.textContent = "Paste a script with optional GLOBAL and required SHOT blocks. Import replaces the current clip timeline, preserves audio, and recalculates clip timing cumulatively.";
+    hint.textContent = "Paste a script with optional GLOBAL and optional VIDEO metadata blocks before required SHOT blocks. Import replaces the current clip timeline, preserves audio, and recalculates clip timing cumulatively.";
 
     const errorBox = document.createElement("div");
     errorBox.className = "pr-shot-script-errors";
 
     const textarea = document.createElement("textarea");
     textarea.className = "pr-shot-script-textarea";
-    textarea.placeholder = "GLOBAL: Describe global prompt here.\n\nSHOT 1 | 3s\nDescribe shot 1 here.\n\nSHOT 2 | 2.5s\nDescribe shot 2 here.";
+    textarea.placeholder = "GLOBAL: Describe global prompt here.\n\nVIDEO:\nwidth: 1280\nheight: 720\ntotal_duration: 40\n\nSHOT 1 | 3s\nDescribe shot 1 here.\n\nSHOT 2 | 2.5s\nDescribe shot 2 here.";
 
-    const setError = (message = "") => {
+    const setError = (message = "", kind = "error") => {
+      errorBox.classList.toggle("is-warning", kind === "warning");
       errorBox.textContent = message;
     };
 
@@ -2977,24 +3021,28 @@ class TimelineEditor {
       if (!file) return;
       try {
         textarea.value = await file.text();
-        setError("");
+        setError("", "error");
       } catch (err) {
         console.error("[LTXDirector] Failed to read shot script file", err);
-        setError("Unable to read the selected file.");
+        setError("Unable to read the selected file.", "error");
       }
     });
 
     importBtn.addEventListener("click", () => {
       try {
-        this.importShotScript(textarea.value);
+        const warningMessage = this.importShotScript(textarea.value);
+        if (warningMessage) {
+          setError(`Warning: ${warningMessage}`, "warning");
+          return;
+        }
         this.closeShotScriptImportModal();
       } catch (err) {
         if (ShotScriptParseError && err instanceof ShotScriptParseError) {
-          setError(formatShotScriptParseErrors(err.errors));
+          setError(formatShotScriptParseErrors(err.errors), "error");
           return;
         }
         console.error("[LTXDirector] Shot script import failed", err);
-        setError("Import failed. Check the browser console for details.");
+        setError("Import failed. Check the browser console for details.", "error");
       }
     });
 
@@ -3062,6 +3110,21 @@ class TimelineEditor {
       this.globalPromptInput.value = parsed.globalPrompt;
       this.autoSizeTextarea(this.globalPromptInput, 220);
     }
+    const fireWidgetCallback = (widget, value) => {
+      if (!widget) return;
+      widget.value = value;
+      if (widget.callback) {
+        try { widget.callback(value, app.canvas, this.node, null, null); } catch (e) { }
+      }
+    };
+    const widthWidget = this.node.widgets?.find(w => w.name === "custom_width");
+    const heightWidget = this.node.widgets?.find(w => w.name === "custom_height");
+    if (Number.isFinite(parsed.video?.width) && parsed.video.width > 0) {
+      fireWidgetCallback(widthWidget, Math.round(parsed.video.width));
+    }
+    if (Number.isFinite(parsed.video?.height) && parsed.video.height > 0) {
+      fireWidgetCallback(heightWidget, Math.round(parsed.video.height));
+    }
 
     const hasGlobalPrompt = !!parsed.globalPrompt.trim();
     if (this.useGlobalPromptWidget) {
@@ -3079,6 +3142,15 @@ class TimelineEditor {
     this.setDurationFramesValue(Math.max(1, importedEnd, audioEnd));
     this.updateUIFromSelection();
     this.commitChanges();
+    const shotDurationTotal = parsed.shots.reduce((sum, shot) => sum + shot.duration, 0);
+    const metadataDuration = parsed.video?.totalDuration;
+    if (Number.isFinite(metadataDuration) && metadataDuration > 0) {
+      const delta = Math.abs(metadataDuration - shotDurationTotal);
+      if (delta > 0.001) {
+        return `VIDEO total_duration (${metadataDuration}s) does not match total SHOT duration (${Number(shotDurationTotal.toFixed(3))}s).`;
+      }
+    }
+    return "";
   }
 
   exportShotScript() {

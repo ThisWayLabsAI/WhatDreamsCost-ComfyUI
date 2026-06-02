@@ -4,8 +4,15 @@ export interface ParsedShot {
   prompt: string;
 }
 
+export interface ParsedVideoMetadata {
+  width?: number;
+  height?: number;
+  totalDuration?: number;
+}
+
 export interface ParsedShotScriptDocument {
   globalPrompt: string;
+  video: ParsedVideoMetadata;
   shots: ParsedShot[];
 }
 

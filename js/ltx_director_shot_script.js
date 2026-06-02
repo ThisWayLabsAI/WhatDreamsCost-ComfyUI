@@ -17,10 +17,20 @@
 /**
  * @typedef {Object} ParsedShotScriptDocument
  * @property {string} globalPrompt
+ * @property {ParsedVideoMetadata} video
  * @property {ParsedShot[]} shots
  */
 
+/**
+ * @typedef {Object} ParsedVideoMetadata
+ * @property {number | undefined} width
+ * @property {number | undefined} height
+ * @property {number | undefined} totalDuration
+ */
+
 const GLOBAL_HEADER_REGEX = /^\s*GLOBAL:\s*(.*)$/i;
+const VIDEO_HEADER_REGEX = /^\s*VIDEO:\s*$/i;
+const VIDEO_PROPERTY_REGEX = /^\s*([a-z_]+)\s*:\s*(.*?)\s*$/i;
 const SHOT_LINE_REGEX = /^\s*SHOT\b/i;
 const SHOT_HEADER_REGEX = /^\s*SHOT\s+(\d+)\s*\|\s*(.*?)\s*$/i;
 const DURATION_REGEX = /^(\d+(?:\.\d+)?)\s*s?$/i;
@@ -56,13 +66,18 @@ function parseShotScriptDocument(text) {
 
   const firstContentLine = lines.findIndex((line) => line.trim().length > 0);
   let globalPrompt = "";
+  /** @type {ParsedVideoMetadata} */
+  const video = { width: undefined, height: undefined, totalDuration: undefined };
+  const firstShotLine = lines.findIndex((line) => SHOT_LINE_REGEX.test(line));
+  const preShotEnd = firstShotLine === -1 ? lines.length : firstShotLine;
+  let postGlobalLine = firstContentLine;
 
   if (firstContentLine !== -1 && GLOBAL_HEADER_REGEX.test(lines[firstContentLine])) {
     const globalHeaderMatch = lines[firstContentLine].match(GLOBAL_HEADER_REGEX);
     const inlineGlobalPrompt = globalHeaderMatch ? globalHeaderMatch[1] : "";
-    let globalEnd = lines.length;
+    let globalEnd = preShotEnd;
     for (let i = firstContentLine + 1; i < lines.length; i++) {
-      if (SHOT_LINE_REGEX.test(lines[i])) {
+      if (SHOT_LINE_REGEX.test(lines[i]) || VIDEO_HEADER_REGEX.test(lines[i])) {
         globalEnd = i;
         break;
       }
@@ -72,6 +87,72 @@ function parseShotScriptDocument(text) {
       globalPrompt = `${inlineGlobalPrompt}\n${continuationPrompt}`;
     } else {
       globalPrompt = inlineGlobalPrompt || continuationPrompt;
+    }
+    postGlobalLine = globalEnd;
+  }
+
+  if (preShotEnd > 0) {
+    let videoHeaderLine = -1;
+    for (let i = Math.max(0, postGlobalLine); i < preShotEnd; i++) {
+      const line = lines[i];
+      if (!line.trim()) continue;
+      if (VIDEO_HEADER_REGEX.test(line)) {
+        videoHeaderLine = i;
+      }
+      break;
+    }
+
+    if (videoHeaderLine !== -1) {
+      for (let i = videoHeaderLine + 1; i < preShotEnd; i++) {
+        const line = lines[i];
+        if (!line.trim()) continue;
+        const propertyMatch = line.match(VIDEO_PROPERTY_REGEX);
+        if (!propertyMatch) {
+          errors.push({
+            line: i + 1,
+            message: "Invalid VIDEO metadata declaration:",
+            declaration: line,
+          });
+          continue;
+        }
+
+        const key = propertyMatch[1].toLowerCase();
+        const rawValue = propertyMatch[2].trim();
+
+        if (key === "width" || key === "height") {
+          const parsed = parseInt(rawValue, 10);
+          if (!/^\d+$/.test(rawValue) || !Number.isFinite(parsed) || parsed <= 0) {
+            errors.push({
+              line: i + 1,
+              message: `Invalid VIDEO ${key}: must be a positive integer.`,
+              declaration: line,
+            });
+            continue;
+          }
+          video[key] = parsed;
+          continue;
+        }
+
+        if (key === "total_duration") {
+          const parsed = parseFloat(rawValue);
+          if (!/^\d+(?:\.\d+)?$/.test(rawValue) || !Number.isFinite(parsed) || parsed <= 0) {
+            errors.push({
+              line: i + 1,
+              message: "Invalid VIDEO total_duration: must be a positive number.",
+              declaration: line,
+            });
+            continue;
+          }
+          video.totalDuration = parsed;
+          continue;
+        }
+
+        errors.push({
+          line: i + 1,
+          message: "Unsupported VIDEO metadata key:",
+          declaration: line,
+        });
+      }
     }
   }
 
@@ -154,7 +235,7 @@ function parseShotScriptDocument(text) {
     };
   });
 
-  return { globalPrompt, shots };
+  return { globalPrompt, video, shots };
 }
 
 /**

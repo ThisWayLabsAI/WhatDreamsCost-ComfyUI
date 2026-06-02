@@ -18,6 +18,7 @@ SHOT 2 | 2s
 The Wright Flyer begins moving forward.`);
 
   assert.equal(parsed.globalPrompt, "1903 Kitty Hawk. Historical realism.");
+  assert.deepEqual(parsed.video, { width: undefined, height: undefined, totalDuration: undefined });
   assert.deepEqual(parsed.shots, [
     {
       shotNumber: 1,
@@ -40,6 +41,7 @@ SHOT 1 | 3s
 Wide low-angle shot beside the launch rail.`);
 
   assert.equal(parsed.globalPrompt, "1903 Kitty Hawk. Historical realism.\n");
+  assert.deepEqual(parsed.video, { width: undefined, height: undefined, totalDuration: undefined });
   assert.equal(parsed.shots.length, 1);
 });
 
@@ -64,8 +66,50 @@ SHOT 2 | 1.25s
 Second prompt.`);
 
   assert.equal(parsed.globalPrompt, "");
+  assert.deepEqual(parsed.video, { width: undefined, height: undefined, totalDuration: undefined });
   assert.equal(parsed.shots.length, 2);
   assert.equal(parsed.shots[1].duration, 1.25);
+});
+
+test("parseShotScriptDocument parses optional VIDEO metadata block", () => {
+  const parsed = parseShotScriptDocument(`GLOBAL: Historical realism.
+
+VIDEO:
+width: 1280
+height: 720
+total_duration: 40.5
+
+SHOT 1 | 3s
+First prompt.`);
+
+  assert.deepEqual(parsed.video, { width: 1280, height: 720, totalDuration: 40.5 });
+  assert.equal(parsed.shots.length, 1);
+});
+
+test("parseShotScriptDocument parses VIDEO block without GLOBAL block", () => {
+  const parsed = parseShotScriptDocument(`VIDEO:
+width: 1024
+
+SHOT 1 | 2s
+First prompt.`);
+
+  assert.deepEqual(parsed.video, { width: 1024, height: undefined, totalDuration: undefined });
+  assert.equal(parsed.globalPrompt, "");
+});
+
+test("parseShotScriptDocument reports invalid VIDEO metadata", () => {
+  assert.throws(
+    () => parseShotScriptDocument(`VIDEO:
+width: -5
+
+SHOT 1 | 2s
+Prompt.`),
+    /** @param {unknown} error */ (error) => {
+      assert.ok(error instanceof ShotScriptParseError);
+      assert.match(error.message, /Invalid VIDEO width: must be a positive integer\./);
+      return true;
+    }
+  );
 });
 
 test("parseShotScript reports malformed shot blocks with line numbers", () => {
