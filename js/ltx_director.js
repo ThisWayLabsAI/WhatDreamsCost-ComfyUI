@@ -16,6 +16,10 @@ const CLIP_INDEX_PROMPT_GAP = 6;
 
 const HIDDEN_WIDGET_NAMES = ["timeline_data", "local_prompts", "segment_lengths", "guide_strength", "audio_data", "use_custom_audio", "use_global_prompt", "global_prompt"];
 
+function getShotScriptApi() {
+  return window.LTXDirectorShotScript || {};
+}
+
 function hideWidget(w) {
   if (!w) return;
   if (!w._origType && w.type !== "hidden") w._origType = w.type;
@@ -300,6 +304,72 @@ const STYLES = `
     display: flex;
     gap: 6px;
     flex-wrap: wrap;
+  }
+  .pr-shot-script-modal {
+    width: min(82vw, 960px);
+    height: min(78vh, 720px);
+    min-width: 480px;
+    min-height: 340px;
+    resize: both;
+    overflow: auto;
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    box-sizing: border-box;
+  }
+  .pr-shot-script-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .pr-shot-script-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .pr-shot-script-textarea {
+    flex: 1;
+    width: 100%;
+    min-height: 220px;
+    background: #222;
+    color: #e0e0e0;
+    border: 1px solid #111;
+    border-radius: 6px;
+    padding: 10px;
+    font-size: 12px;
+    line-height: 1.45;
+    box-sizing: border-box;
+    resize: none;
+    white-space: pre-wrap;
+  }
+  .pr-shot-script-errors {
+    min-height: 0;
+    max-height: 180px;
+    overflow: auto;
+    background: #2a1414;
+    color: #ffb4b4;
+    border: 1px solid #6f2a2a;
+    border-radius: 6px;
+    padding: 10px;
+    font-size: 11px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+  }
+  .pr-shot-script-errors:empty {
+    display: none;
+  }
+  .pr-shot-script-hint {
+    color: #bcbcbc;
+    font-size: 11px;
+    line-height: 1.5;
+    white-space: pre-wrap;
   }
   .pr-controls-group {
     background: #1e1e1e;
@@ -969,6 +1039,7 @@ class TimelineEditor {
     cancelAnimationFrame(this._renderLoop);
     this.pauseAudio();
     this.closePromptEditorModal();
+    this.closeShotScriptImportModal();
     window.removeEventListener("keydown", this.handleKeyDown, true);
     window.removeEventListener("paste", this.handlePaste, true);
   }
@@ -1025,6 +1096,19 @@ class TimelineEditor {
       if (window.app && window.app.graph) {
         window.app.graph.setDirtyCanvas(true, true);
       }
+    }
+  }
+
+  setDurationFramesValue(frames) {
+    const nextFrames = Math.max(1, Math.round(frames));
+    if (this.durationFramesWidget) {
+      this.durationFramesWidget.value = nextFrames;
+    }
+    if (this.durationSecondsWidget) {
+      this.durationSecondsWidget.value = parseFloat((nextFrames / this.getFrameRate()).toFixed(3));
+    }
+    if (window.app && window.app.graph) {
+      window.app.graph.setDirtyCanvas(true, true);
     }
   }
 
@@ -1195,6 +1279,16 @@ class TimelineEditor {
     addTextBtn.innerHTML = `${ICONS.text} Add Text`;
     addTextBtn.addEventListener("click", () => this.addTextSegmentFreeSpace());
 
+    const importShotScriptBtn = document.createElement("button");
+    importShotScriptBtn.className = "pr-btn";
+    importShotScriptBtn.textContent = "Import Shot Script";
+    importShotScriptBtn.addEventListener("click", () => this.openShotScriptImportModal());
+
+    const exportShotScriptBtn = document.createElement("button");
+    exportShotScriptBtn.className = "pr-btn";
+    exportShotScriptBtn.textContent = "Export Shot Script";
+    exportShotScriptBtn.addEventListener("click", () => this.exportShotScript());
+
     const deleteBtn = document.createElement("button");
     deleteBtn.className = "pr-btn pr-btn-danger";
     deleteBtn.innerHTML = `${ICONS.trash} Delete`;
@@ -1214,6 +1308,8 @@ class TimelineEditor {
     actionGroup.appendChild(uploadBtn);
     actionGroup.appendChild(addTextBtn);
     actionGroup.appendChild(uploadAudioBtn);
+    actionGroup.appendChild(importShotScriptBtn);
+    actionGroup.appendChild(exportShotScriptBtn);
     actionGroup.appendChild(deleteBtn);
     actionGroup.appendChild(rippleDeleteBtn);
     actionGroup.appendChild(trimToLastBtn);
@@ -2565,6 +2661,192 @@ class TimelineEditor {
       document.removeEventListener("keydown", this._modalEscHandler);
       this._modalEscHandler = null;
     }
+  }
+
+  openShotScriptImportModal() {
+    this.closeShotScriptImportModal();
+    const { ShotScriptParseError, formatShotScriptParseErrors } = getShotScriptApi();
+
+    const backdrop = document.createElement("div");
+    backdrop.className = "pr-prompt-modal-backdrop";
+
+    const modal = document.createElement("div");
+    modal.className = "pr-shot-script-modal";
+
+    const toolbar = document.createElement("div");
+    toolbar.className = "pr-shot-script-toolbar";
+
+    const title = document.createElement("div");
+    title.textContent = "Import Shot Script";
+
+    const actions = document.createElement("div");
+    actions.className = "pr-shot-script-actions";
+
+    const fileInput = document.createElement("input");
+    fileInput.type = "file";
+    fileInput.accept = ".txt,text/plain";
+    fileInput.style.display = "none";
+
+    const loadFileBtn = document.createElement("button");
+    loadFileBtn.className = "pr-mini-btn";
+    loadFileBtn.textContent = "Load .txt";
+    loadFileBtn.addEventListener("click", () => fileInput.click());
+
+    const importBtn = document.createElement("button");
+    importBtn.className = "pr-mini-btn";
+    importBtn.textContent = "Import";
+
+    const closeBtn = document.createElement("button");
+    closeBtn.className = "pr-mini-btn";
+    closeBtn.textContent = "Close";
+    closeBtn.addEventListener("click", () => this.closeShotScriptImportModal());
+
+    actions.appendChild(loadFileBtn);
+    actions.appendChild(importBtn);
+    actions.appendChild(closeBtn);
+    toolbar.appendChild(title);
+    toolbar.appendChild(actions);
+
+    const hint = document.createElement("div");
+    hint.className = "pr-shot-script-hint";
+    hint.textContent = "Paste a script with optional GLOBAL and required SHOT blocks. Import replaces the current clip timeline, preserves audio, and recalculates clip timing cumulatively.";
+
+    const errorBox = document.createElement("div");
+    errorBox.className = "pr-shot-script-errors";
+
+    const textarea = document.createElement("textarea");
+    textarea.className = "pr-shot-script-textarea";
+    textarea.placeholder = "GLOBAL:\nDescribe global prompt here.\n\nSHOT 1 | 3s\nDescribe shot 1 here.\n\nSHOT 2 | 2.5s\nDescribe shot 2 here.";
+
+    const setError = (message = "") => {
+      errorBox.textContent = message;
+    };
+
+    fileInput.addEventListener("change", async (event) => {
+      const file = event.target.files?.[0];
+      fileInput.value = "";
+      if (!file) return;
+      try {
+        textarea.value = await file.text();
+        setError("");
+      } catch (err) {
+        console.error("[LTXDirector] Failed to read shot script file", err);
+        setError("Unable to read the selected file.");
+      }
+    });
+
+    importBtn.addEventListener("click", () => {
+      try {
+        this.importShotScript(textarea.value);
+        this.closeShotScriptImportModal();
+      } catch (err) {
+        if (ShotScriptParseError && err instanceof ShotScriptParseError) {
+          setError(formatShotScriptParseErrors(err.errors));
+          return;
+        }
+        console.error("[LTXDirector] Shot script import failed", err);
+        setError("Import failed. Check the browser console for details.");
+      }
+    });
+
+    backdrop.addEventListener("mousedown", (event) => {
+      if (event.target === backdrop) this.closeShotScriptImportModal();
+    });
+
+    this._shotScriptEscHandler = (event) => {
+      if (event.key === "Escape") this.closeShotScriptImportModal();
+    };
+    document.addEventListener("keydown", this._shotScriptEscHandler);
+
+    modal.appendChild(toolbar);
+    modal.appendChild(hint);
+    modal.appendChild(errorBox);
+    modal.appendChild(textarea);
+    modal.appendChild(fileInput);
+    backdrop.appendChild(modal);
+    document.body.appendChild(backdrop);
+    this._shotScriptModalEl = backdrop;
+    textarea.focus();
+  }
+
+  closeShotScriptImportModal() {
+    if (this._shotScriptModalEl) {
+      this._shotScriptModalEl.remove();
+      this._shotScriptModalEl = null;
+    }
+    if (this._shotScriptEscHandler) {
+      document.removeEventListener("keydown", this._shotScriptEscHandler);
+      this._shotScriptEscHandler = null;
+    }
+  }
+
+  importShotScript(text) {
+    const { parseShotScriptDocument } = getShotScriptApi();
+    if (!parseShotScriptDocument) {
+      throw new Error("Shot script parser is unavailable.");
+    }
+    const parsed = parseShotScriptDocument(text);
+    const frameRate = this.getFrameRate();
+    let cursorFrames = 0;
+    const importedSegments = parsed.shots.map((shot) => {
+      const length = Math.max(1, Math.round(shot.duration * frameRate));
+      const segment = {
+        id: `${Date.now()}${Math.random().toString(36).substr(2, 5)}`,
+        start: cursorFrames,
+        length,
+        prompt: shot.prompt,
+        type: "text",
+      };
+      cursorFrames += length;
+      return segment;
+    });
+
+    this.timeline.segments = importedSegments;
+    this.selectionType = "image";
+    this.selectedIndex = importedSegments.length > 0 ? 0 : -1;
+
+    if (this.globalPromptWidget) {
+      this.globalPromptWidget.value = parsed.globalPrompt;
+      if (this.globalPromptWidget.callback) this.globalPromptWidget.callback(parsed.globalPrompt);
+    }
+    if (this.globalPromptInput) {
+      this.globalPromptInput.value = parsed.globalPrompt;
+      this.autoSizeTextarea(this.globalPromptInput, 220);
+    }
+
+    const hasGlobalPrompt = !!parsed.globalPrompt.trim();
+    if (this.useGlobalPromptWidget) {
+      this.useGlobalPromptWidget.value = hasGlobalPrompt;
+      if (this.useGlobalPromptWidget.callback) this.useGlobalPromptWidget.callback(hasGlobalPrompt);
+    }
+    if (this.useGlobalPromptCheckbox) {
+      this.useGlobalPromptCheckbox.checked = hasGlobalPrompt;
+    }
+
+    const importedEnd = importedSegments.length > 0
+      ? importedSegments[importedSegments.length - 1].start + importedSegments[importedSegments.length - 1].length
+      : 0;
+    const audioEnd = Math.max(0, ...this.timeline.audioSegments.map((segment) => segment.start + segment.length));
+    this.setDurationFramesValue(Math.max(1, importedEnd, audioEnd));
+    this.updateUIFromSelection();
+    this.commitChanges();
+  }
+
+  exportShotScript() {
+    const { exportTimelineToShotScript } = getShotScriptApi();
+    if (!exportTimelineToShotScript) return;
+    const text = exportTimelineToShotScript({
+      globalPrompt: this.globalPromptWidget?.value || "",
+      segments: this.timeline.segments,
+      frameRate: this.getFrameRate(),
+    });
+    const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "ltx-director-shot-script.txt";
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
   }
 
   formatTime(frames, dropSuffix = false) {
