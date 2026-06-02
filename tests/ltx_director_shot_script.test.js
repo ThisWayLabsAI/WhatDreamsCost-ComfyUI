@@ -58,6 +58,19 @@ The Flyer lifts into the air.`);
   ]);
 });
 
+test("parseShotScript accepts CLIP declarations", () => {
+  const parsed = parseShotScript(`CLIP 1 | 4.5s
+The Flyer lifts into the air.`);
+
+  assert.deepEqual(parsed, [
+    {
+      shotNumber: 1,
+      duration: 4.5,
+      prompt: "The Flyer lifts into the air.",
+    },
+  ]);
+});
+
 test("parseShotScript works without a global section", () => {
   const parsed = parseShotScriptDocument(`SHOT 1 | 3s
 First prompt.
@@ -68,6 +81,20 @@ Second prompt.`);
   assert.equal(parsed.globalPrompt, "");
   assert.deepEqual(parsed.video, { width: undefined, height: undefined, totalDuration: undefined });
   assert.equal(parsed.shots.length, 2);
+  assert.equal(parsed.shots[1].duration, 1.25);
+});
+
+test("parseShotScript accepts mixed SHOT and CLIP declarations as aliases", () => {
+  const parsed = parseShotScriptDocument(`CLIP 1 | 3s
+First prompt.
+
+SHOT 2 | 1.25s
+Second prompt.`);
+
+  assert.equal(parsed.globalPrompt, "");
+  assert.deepEqual(parsed.video, { width: undefined, height: undefined, totalDuration: undefined });
+  assert.equal(parsed.shots.length, 2);
+  assert.equal(parsed.shots[0].duration, 3);
   assert.equal(parsed.shots[1].duration, 1.25);
 });
 
@@ -119,7 +146,7 @@ Broken prompt.`),
     /** @param {unknown} error */ (error) => {
       assert.ok(error instanceof ShotScriptParseError);
       assert.match(error.message, /Line 1:/);
-      assert.match(error.message, /Invalid shot declaration:/);
+      assert.match(error.message, /Invalid clip declaration:/);
       assert.match(error.message, /SHOT 1 \| xs/);
       return true;
     }
@@ -136,13 +163,13 @@ Second.`),
     /** @param {unknown} error */ (error) => {
       assert.ok(error instanceof ShotScriptParseError);
       assert.match(error.message, /Line 4:/);
-      assert.match(error.message, /Duplicate shot number: 1/);
+      assert.match(error.message, /Duplicate clip number: 1/);
       return true;
     }
   );
 });
 
-test("exportTimelineToShotScript serializes the timeline in shot script format", () => {
+test("exportTimelineToShotScript serializes the timeline in clip script format", () => {
   const text = exportTimelineToShotScript({
     globalPrompt: "Historical realism.",
     frameRate: 24,
@@ -150,13 +177,22 @@ test("exportTimelineToShotScript serializes the timeline in shot script format",
       { start: 24, length: 48, prompt: "Second prompt." },
       { start: 0, length: 72, prompt: "First prompt." },
     ],
+    video: {
+      width: 1280,
+      height: 720,
+    },
   });
 
   assert.equal(text, `GLOBAL: Historical realism.
 
-SHOT 1 | 3s
+VIDEO:
+width: 1280
+height: 720
+total_duration: 5
+
+CLIP 1 | 3s
 First prompt.
 
-SHOT 2 | 2s
+CLIP 2 | 2s
 Second prompt.`);
 });

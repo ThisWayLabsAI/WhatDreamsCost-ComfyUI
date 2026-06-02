@@ -31,8 +31,8 @@
 const GLOBAL_HEADER_REGEX = /^\s*GLOBAL:\s*(.*)$/i;
 const VIDEO_HEADER_REGEX = /^\s*VIDEO:\s*$/i;
 const VIDEO_PROPERTY_REGEX = /^\s*([a-z_]+)\s*:\s*(.*?)\s*$/i;
-const SHOT_LINE_REGEX = /^\s*SHOT\b/i;
-const SHOT_HEADER_REGEX = /^\s*SHOT\s+(\d+)\s*\|\s*(.*?)\s*$/i;
+const CLIP_LINE_REGEX = /^\s*(?:CLIP|SHOT)\b/i;
+const CLIP_HEADER_REGEX = /^\s*(?:CLIP|SHOT)\s+(\d+)\s*\|\s*(.*?)\s*$/i;
 const DURATION_REGEX = /^(\d+(?:\.\d+)?)\s*s?$/i;
 
 class ShotScriptParseError extends Error {
@@ -68,7 +68,7 @@ function parseShotScriptDocument(text) {
   let globalPrompt = "";
   /** @type {ParsedVideoMetadata} */
   const video = { width: undefined, height: undefined, totalDuration: undefined };
-  const firstShotLine = lines.findIndex((line) => SHOT_LINE_REGEX.test(line));
+  const firstShotLine = lines.findIndex((line) => CLIP_LINE_REGEX.test(line));
   const preShotEnd = firstShotLine === -1 ? lines.length : firstShotLine;
   let postGlobalLine = firstContentLine;
 
@@ -77,7 +77,7 @@ function parseShotScriptDocument(text) {
     const inlineGlobalPrompt = globalHeaderMatch ? globalHeaderMatch[1] : "";
     let globalEnd = preShotEnd;
     for (let i = firstContentLine + 1; i < lines.length; i++) {
-      if (SHOT_LINE_REGEX.test(lines[i]) || VIDEO_HEADER_REGEX.test(lines[i])) {
+      if (CLIP_LINE_REGEX.test(lines[i]) || VIDEO_HEADER_REGEX.test(lines[i])) {
         globalEnd = i;
         break;
       }
@@ -158,14 +158,14 @@ function parseShotScriptDocument(text) {
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    if (!SHOT_LINE_REGEX.test(line)) continue;
+    if (!CLIP_LINE_REGEX.test(line)) continue;
 
-    const headerMatch = line.match(SHOT_HEADER_REGEX);
+    const headerMatch = line.match(CLIP_HEADER_REGEX);
     if (!headerMatch) {
-      const missingDuration = /^\s*SHOT\s+\d+\s*(?:\|\s*)?$/i.test(line);
+      const missingDuration = /^\s*(?:CLIP|SHOT)\s+\d+\s*(?:\|\s*)?$/i.test(line);
       errors.push({
         line: i + 1,
-        message: missingDuration ? "Missing duration:" : "Invalid shot declaration:",
+        message: missingDuration ? "Missing duration:" : "Invalid clip declaration:",
         declaration: line,
       });
       continue;
@@ -188,7 +188,7 @@ function parseShotScriptDocument(text) {
     if (!Number.isFinite(duration) || duration <= 0) {
       errors.push({
         line: i + 1,
-        message: "Invalid shot declaration:",
+        message: "Invalid clip declaration:",
         declaration: line,
       });
       continue;
@@ -205,7 +205,7 @@ function parseShotScriptDocument(text) {
   if (headers.length === 0) {
     errors.push({
       line: 1,
-      message: "No SHOT blocks found.",
+      message: "No CLIP or SHOT blocks found.",
     });
   }
 
@@ -214,7 +214,7 @@ function parseShotScriptDocument(text) {
     if (seenShotNumbers.has(header.shotNumber)) {
       errors.push({
         line: header.line,
-        message: `Duplicate shot number: ${header.shotNumber}`,
+        message: `Duplicate clip number: ${header.shotNumber}`,
       });
       continue;
     }
@@ -252,7 +252,7 @@ function formatShotScriptParseErrors(errors) {
 }
 
 /**
- * @param {{ globalPrompt?: string, shots: ParsedShot[] }} input
+ * @param {{ globalPrompt?: string, video?: ParsedVideoMetadata, shots: ParsedShot[] }} input
  * @returns {string}
  */
 function formatShotScript(input) {
@@ -261,16 +261,20 @@ function formatShotScript(input) {
   if (globalPrompt) {
     sections.push(`GLOBAL: ${globalPrompt}`);
   }
+  const formattedVideoMetadata = formatVideoMetadata(input.video);
+  if (formattedVideoMetadata) {
+    sections.push(formattedVideoMetadata);
+  }
 
   for (const shot of input.shots) {
-    sections.push(`SHOT ${shot.shotNumber} | ${formatDurationSeconds(shot.duration)}s\n${shot.prompt ?? ""}`);
+    sections.push(`CLIP ${shot.shotNumber} | ${formatDurationSeconds(shot.duration)}s\n${shot.prompt ?? ""}`);
   }
 
   return sections.join("\n\n");
 }
 
 /**
- * @param {{ segments?: Array<{ start: number, length: number, prompt?: string }>, globalPrompt?: string, frameRate?: number }} input
+ * @param {{ segments?: Array<{ start: number, length: number, prompt?: string }>, globalPrompt?: string, frameRate?: number, video?: ParsedVideoMetadata }} input
  * @returns {string}
  */
 function exportTimelineToShotScript(input) {
@@ -281,8 +285,18 @@ function exportTimelineToShotScript(input) {
     duration: segment.length / frameRate,
     prompt: segment.prompt || "",
   }));
+  const calculatedTotalDuration = shots.reduce((sum, shot) => sum + shot.duration, 0);
+  const parsedVideoTotalDuration = Number(input.video?.totalDuration);
+  const video = {
+    width: input.video?.width,
+    height: input.video?.height,
+    totalDuration: Number.isFinite(parsedVideoTotalDuration) && parsedVideoTotalDuration > 0
+      ? parsedVideoTotalDuration
+      : calculatedTotalDuration,
+  };
   return formatShotScript({
     globalPrompt: input.globalPrompt || "",
+    video,
     shots,
   });
 }
@@ -302,6 +316,32 @@ function normalizeLineEndings(text) {
 function formatDurationSeconds(duration) {
   const rounded = Number(duration.toFixed(3));
   return Number.isInteger(rounded) ? `${rounded}` : `${rounded}`;
+}
+
+/**
+ * @param {ParsedVideoMetadata | undefined} video
+ * @returns {string}
+ */
+function formatVideoMetadata(video) {
+  if (!video) return "";
+
+  const lines = [];
+  const width = Number(video.width);
+  const height = Number(video.height);
+  const totalDuration = Number(video.totalDuration);
+
+  if (Number.isFinite(width) && width > 0) {
+    lines.push(`width: ${Math.round(width)}`);
+  }
+  if (Number.isFinite(height) && height > 0) {
+    lines.push(`height: ${Math.round(height)}`);
+  }
+  if (Number.isFinite(totalDuration) && totalDuration > 0) {
+    lines.push(`total_duration: ${formatDurationSeconds(totalDuration)}`);
+  }
+
+  if (lines.length === 0) return "";
+  return `VIDEO:\n${lines.join("\n")}`;
 }
 
 const shotScriptApi = {

@@ -1351,12 +1351,12 @@ class TimelineEditor {
 
     const importShotScriptBtn = document.createElement("button");
     importShotScriptBtn.className = "pr-btn";
-    importShotScriptBtn.textContent = "Import Shot Script";
+    importShotScriptBtn.textContent = "Import Clip Script";
     importShotScriptBtn.addEventListener("click", () => this.openShotScriptImportModal());
 
     const exportShotScriptBtn = document.createElement("button");
     exportShotScriptBtn.className = "pr-btn";
-    exportShotScriptBtn.textContent = "Export Shot Script";
+    exportShotScriptBtn.textContent = "Export Clip Script";
     exportShotScriptBtn.addEventListener("click", () => this.exportShotScript());
 
     const deleteBtn = document.createElement("button");
@@ -2969,7 +2969,7 @@ class TimelineEditor {
     toolbar.className = "pr-shot-script-toolbar";
 
     const title = document.createElement("div");
-    title.textContent = "Import Shot Script";
+    title.textContent = "Import Clip Script";
 
     const actions = document.createElement("div");
     actions.className = "pr-shot-script-actions";
@@ -3001,14 +3001,14 @@ class TimelineEditor {
 
     const hint = document.createElement("div");
     hint.className = "pr-shot-script-hint";
-    hint.textContent = "Paste a script with optional GLOBAL and optional VIDEO metadata blocks before required SHOT blocks. Import replaces the current clip timeline, preserves audio, and recalculates clip timing cumulatively.";
+    hint.textContent = "Paste a script with optional GLOBAL and optional VIDEO metadata blocks before required CLIP blocks. Import replaces the current clip timeline, preserves audio, and recalculates clip timing cumulatively.";
 
     const errorBox = document.createElement("div");
     errorBox.className = "pr-shot-script-errors";
 
     const textarea = document.createElement("textarea");
     textarea.className = "pr-shot-script-textarea";
-    textarea.placeholder = "GLOBAL: Describe global prompt here.\n\nVIDEO:\nwidth: 1280\nheight: 720\ntotal_duration: 40\n\nSHOT 1 | 3s\nDescribe shot 1 here.\n\nSHOT 2 | 2.5s\nDescribe shot 2 here.";
+    textarea.placeholder = "GLOBAL: Describe global prompt here.\n\nVIDEO:\nwidth: 1280\nheight: 720\ntotal_duration: 40\n\nCLIP 1 | 3s\nDescribe clip 1 here.\n\nCLIP 2 | 2.5s\nDescribe clip 2 here.";
 
     const setError = (message = "", kind = "error") => {
       errorBox.classList.toggle("is-warning", kind === "warning");
@@ -3023,7 +3023,7 @@ class TimelineEditor {
         textarea.value = await file.text();
         setError("", "error");
       } catch (err) {
-        console.error("[LTXDirector] Failed to read shot script file", err);
+        console.error("[LTXDirector] Failed to read clip script file", err);
         setError("Unable to read the selected file.", "error");
       }
     });
@@ -3041,7 +3041,7 @@ class TimelineEditor {
           setError(formatShotScriptParseErrors(err.errors), "error");
           return;
         }
-        console.error("[LTXDirector] Shot script import failed", err);
+        console.error("[LTXDirector] Clip script import failed", err);
         setError("Import failed. Check the browser console for details.", "error");
       }
     });
@@ -3080,7 +3080,7 @@ class TimelineEditor {
   importShotScript(text) {
     const { parseShotScriptDocument } = getShotScriptApi();
     if (!parseShotScriptDocument) {
-      throw new Error("Shot script parser is unavailable.");
+      throw new Error("Clip script parser is unavailable.");
     }
     const parsed = parseShotScriptDocument(text);
     const frameRate = this.getFrameRate();
@@ -3147,7 +3147,7 @@ class TimelineEditor {
     if (Number.isFinite(metadataDuration) && metadataDuration > 0) {
       const delta = Math.abs(metadataDuration - shotDurationTotal);
       if (delta > 0.001) {
-        return `VIDEO total_duration (${metadataDuration}s) does not match total SHOT duration (${Number(shotDurationTotal.toFixed(3))}s).`;
+        return `VIDEO total_duration (${metadataDuration}s) does not match total CLIP duration (${Number(shotDurationTotal.toFixed(3))}s).`;
       }
     }
     return "";
@@ -3160,12 +3160,17 @@ class TimelineEditor {
       globalPrompt: this.globalPromptWidget?.value || "",
       segments: this.timeline.segments,
       frameRate: this.getFrameRate(),
+      video: {
+        width: Number(this.node.widgets?.find((widget) => widget.name === "custom_width")?.value),
+        height: Number(this.node.widgets?.find((widget) => widget.name === "custom_height")?.value),
+        totalDuration: this.getDurationFrames() / this.getFrameRate(),
+      },
     });
     const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = "ltx-director-shot-script.txt";
+    link.download = "ltx-director-clip-script.txt";
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 0);
   }

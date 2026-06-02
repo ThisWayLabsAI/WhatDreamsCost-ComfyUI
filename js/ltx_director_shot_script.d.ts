@@ -30,9 +30,10 @@ export class ShotScriptParseError extends Error {
 export function parseShotScript(text: string): ParsedShot[];
 export function parseShotScriptDocument(text: string): ParsedShotScriptDocument;
 export function formatShotScriptParseErrors(errors: ShotScriptParseIssue[]): string;
-export function formatShotScript(input: { globalPrompt?: string; shots: ParsedShot[] }): string;
+export function formatShotScript(input: { globalPrompt?: string; video?: ParsedVideoMetadata; shots: ParsedShot[] }): string;
 export function exportTimelineToShotScript(input: {
   segments?: Array<{ start: number; length: number; prompt?: string }>;
   globalPrompt?: string;
   frameRate?: number;
+  video?: ParsedVideoMetadata;
 }): string;
