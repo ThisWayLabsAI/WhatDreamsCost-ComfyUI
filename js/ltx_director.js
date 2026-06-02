@@ -4,7 +4,7 @@ const { api } = window.comfyAPI.api;
 // --- UI Constants & Configuration ---
 const RULER_HEIGHT = 24;
 const BLOCK_HEIGHT = 120;
-const AUDIO_TRACK_HEIGHT = 80;
+const AUDIO_TRACK_HEIGHT = 96;
 const CANVAS_HEIGHT = RULER_HEIGHT + BLOCK_HEIGHT + AUDIO_TRACK_HEIGHT;
 const HANDLE_HIT_PX = 14;
 const MIN_SEGMENT_LENGTH = 6;
@@ -195,6 +195,11 @@ const STYLES = `
     color: #efefef;
     font-size: 12px;
     font-weight: 600;
+  }
+  .pr-prompt-modal-header-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
   }
   .pr-prompt-modal textarea {
     flex: 1;
@@ -431,6 +436,8 @@ const STYLES = `
     width: 100%;
     overflow-x: auto;
     overflow-y: hidden;
+    padding-bottom: 10px;
+    box-sizing: content-box;
   }
   .pr-timeline-viewport::-webkit-scrollbar {
     height: 10px;
@@ -945,6 +952,17 @@ class TimelineEditor {
       await navigator.clipboard.writeText(text || "");
       return true;
     } catch (err) {
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = text || "";
+        ta.style.cssText = "position:fixed;top:0;left:0;opacity:0;pointer-events:none;";
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        const ok = document.execCommand("copy");
+        document.body.removeChild(ta);
+        if (ok) return true;
+      } catch (e2) { /* fall through */ }
       console.error("[PromptRelay] Failed to copy text", err);
       return false;
     }
@@ -2211,12 +2229,51 @@ class TimelineEditor {
     const header = document.createElement("div");
     header.className = "pr-prompt-modal-header";
     const title = document.createElement("span");
+    const headerRight = document.createElement("div");
+    headerRight.className = "pr-prompt-modal-header-right";
     const closeBtn = document.createElement("button");
     closeBtn.className = "pr-mini-btn";
     closeBtn.textContent = "Close";
     closeBtn.addEventListener("click", () => this.closePromptEditorModal());
+
+    if (!isGlobal) {
+      const prevBtn = document.createElement("button");
+      prevBtn.className = "pr-mini-btn";
+      prevBtn.title = "Previous clip";
+      prevBtn.textContent = "← Prev";
+      const nextBtn = document.createElement("button");
+      nextBtn.className = "pr-mini-btn";
+      nextBtn.title = "Next clip";
+      nextBtn.textContent = "Next →";
+      const navigateToClip = (targetSeg) => {
+        const idx = this.timeline.segments.findIndex(s => s.id === targetSeg.id);
+        if (idx === -1) return;
+        this.selectedIndex = idx;
+        this.selectionType = "image";
+        this.updateUIFromSelection();
+        this.render();
+        this.openPromptEditorModal("segment");
+      };
+      const updateNavButtons = () => {
+        const ordered = [...this.timeline.segments].sort((a, b) => a.start - b.start);
+        const currentSortedIdx = ordered.findIndex(s => s.id === seg.id);
+        prevBtn.disabled = currentSortedIdx <= 0;
+        nextBtn.disabled = currentSortedIdx >= ordered.length - 1;
+        prevBtn.addEventListener("click", () => {
+          if (currentSortedIdx > 0) navigateToClip(ordered[currentSortedIdx - 1]);
+        });
+        nextBtn.addEventListener("click", () => {
+          if (currentSortedIdx < ordered.length - 1) navigateToClip(ordered[currentSortedIdx + 1]);
+        });
+      };
+      updateNavButtons();
+      headerRight.appendChild(prevBtn);
+      headerRight.appendChild(nextBtn);
+    }
+
+    headerRight.appendChild(closeBtn);
     header.appendChild(title);
-    header.appendChild(closeBtn);
+    header.appendChild(headerRight);
     modal.appendChild(header);
 
     let clipLengthInput = null;
