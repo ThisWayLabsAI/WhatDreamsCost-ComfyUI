@@ -1311,9 +1311,14 @@ class TimelineEditor {
     rippleDeleteBtn.textContent = "Ripple Delete Gaps";
     rippleDeleteBtn.addEventListener("click", () => this.rippleDeleteTrackGaps());
 
+    const resetTimelineOnlyBtn = document.createElement("button");
+    resetTimelineOnlyBtn.className = "pr-btn pr-btn-danger";
+    resetTimelineOnlyBtn.innerHTML = `${ICONS.clear} Reset Timeline`;
+    resetTimelineOnlyBtn.addEventListener("click", () => this.resetTimelineOnly());
+
     const resetTimelineBtn = document.createElement("button");
     resetTimelineBtn.className = "pr-btn pr-btn-danger";
-    resetTimelineBtn.innerHTML = `${ICONS.clear} Reset Timeline + Global`;
+    resetTimelineBtn.innerHTML = `${ICONS.clear} Reset All`;
     resetTimelineBtn.addEventListener("click", () => this.resetGlobalPromptAndTimeline());
 
     actionGroup.appendChild(this.fileInput);
@@ -1699,6 +1704,7 @@ class TimelineEditor {
     timelineActions.appendChild(deleteBtn);
     timelineActions.appendChild(rippleDeleteBtn);
     timelineActions.appendChild(trimToLastBtn);
+    timelineActions.appendChild(resetTimelineOnlyBtn);
     timelineActions.appendChild(resetTimelineBtn);
 
     this.playBtn = document.createElement("button");
@@ -1905,8 +1911,8 @@ class TimelineEditor {
 
     const controlsGroup = document.createElement("div");
     controlsGroup.className = "pr-controls-group";
-    controlsGroup.appendChild(this.strengthRow);
     controlsGroup.appendChild(timelineActions);
+    controlsGroup.appendChild(this.strengthRow);
     controlsGroup.appendChild(playerControls);
     this.wrapper.appendChild(controlsGroup);
     this.wrapper.appendChild(propContainer);
@@ -2301,6 +2307,23 @@ class TimelineEditor {
       this.globalPromptInput.value = "";
       this.autoSizeTextarea(this.globalPromptInput, 220);
     }
+
+    this.updateUIFromSelection();
+    this.commitChanges();
+  }
+
+  resetTimelineOnly() {
+    const hasTimeline = (this.timeline.segments?.length || 0) > 0 || (this.timeline.audioSegments?.length || 0) > 0;
+    if (!hasTimeline) return;
+
+    const confirmed = window.confirm("Reset timeline? This will remove all clips and audio segments.");
+    if (!confirmed) return;
+
+    this.pauseAudio(true);
+    this.timeline = { segments: [], audioSegments: [] };
+    this.selectionType = "image";
+    this.selectedIndex = -1;
+    this.currentFrame = 0;
 
     this.updateUIFromSelection();
     this.commitChanges();
