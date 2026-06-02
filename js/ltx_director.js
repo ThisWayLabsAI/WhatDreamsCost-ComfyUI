@@ -5,6 +5,7 @@ const { api } = window.comfyAPI.api;
 const RULER_HEIGHT = 24;
 const BLOCK_HEIGHT = 120;
 const AUDIO_TRACK_HEIGHT = 96;
+const AUDIO_TRACK_INSET_Y = 2;
 const CANVAS_HEIGHT = RULER_HEIGHT + BLOCK_HEIGHT + AUDIO_TRACK_HEIGHT;
 const HANDLE_HIT_PX = 14;
 const MIN_SEGMENT_LENGTH = 6;
@@ -192,14 +193,46 @@ const STYLES = `
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
     color: #efefef;
     font-size: 12px;
     font-weight: 600;
+  }
+  .pr-prompt-modal-title-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    flex-wrap: wrap;
+  }
+  .pr-prompt-modal-clip-nav {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    border: 1px solid #2f2f2f;
+    border-radius: 6px;
+    background: #161616;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+  .pr-prompt-modal-clip-input {
+    width: 64px;
+    background: #222;
+    color: #f2f2f2;
+    border: 1px solid #454545;
+    border-radius: 4px;
+    padding: 4px 6px;
+    font-size: 11px;
+    font-weight: 600;
+    text-align: center;
+    box-sizing: border-box;
   }
   .pr-prompt-modal-header-right {
     display: flex;
     align-items: center;
     gap: 6px;
+    flex-wrap: wrap;
   }
   .pr-prompt-modal textarea {
     flex: 1;
@@ -2228,15 +2261,32 @@ class TimelineEditor {
     modal.className = "pr-prompt-modal";
     const header = document.createElement("div");
     header.className = "pr-prompt-modal-header";
-    const title = document.createElement("span");
+    const title = document.createElement("div");
+    title.className = "pr-prompt-modal-title-wrap";
     const headerRight = document.createElement("div");
     headerRight.className = "pr-prompt-modal-header-right";
     const closeBtn = document.createElement("button");
     closeBtn.className = "pr-mini-btn";
     closeBtn.textContent = "Close";
     closeBtn.addEventListener("click", () => this.closePromptEditorModal());
+    const getOrderedSegments = () => [...this.timeline.segments].sort((a, b) => a.start - b.start);
 
     if (!isGlobal) {
+      const clipNav = document.createElement("div");
+      clipNav.className = "pr-prompt-modal-clip-nav";
+      const clipLabel = document.createElement("span");
+      clipLabel.textContent = "Clip:";
+      const clipIndexInput = document.createElement("input");
+      clipIndexInput.type = "number";
+      clipIndexInput.min = "1";
+      clipIndexInput.step = "1";
+      clipIndexInput.className = "pr-prompt-modal-clip-input";
+      const clipTotal = document.createElement("span");
+      clipNav.appendChild(clipLabel);
+      clipNav.appendChild(clipIndexInput);
+      clipNav.appendChild(clipTotal);
+      title.appendChild(clipNav);
+
       const prevBtn = document.createElement("button");
       prevBtn.className = "pr-mini-btn";
       prevBtn.title = "Previous clip";
@@ -2247,28 +2297,53 @@ class TimelineEditor {
       nextBtn.textContent = "Next →";
       const navigateToClip = (targetSeg) => {
         const idx = this.timeline.segments.findIndex(s => s.id === targetSeg.id);
-        if (idx === -1) return;
+        if (idx === -1 || targetSeg.id === seg.id) return;
         this.selectedIndex = idx;
         this.selectionType = "image";
         this.updateUIFromSelection();
         this.render();
         this.openPromptEditorModal("segment");
       };
+      const navigateToClipIndex = (targetIndex) => {
+        const ordered = getOrderedSegments();
+        const clampedIndex = clamp(Math.round(targetIndex), 1, ordered.length);
+        const targetSeg = ordered[clampedIndex - 1];
+        if (!targetSeg) return;
+        navigateToClip(targetSeg);
+      };
       const updateNavButtons = () => {
-        const ordered = [...this.timeline.segments].sort((a, b) => a.start - b.start);
+        const ordered = getOrderedSegments();
         const currentSortedIdx = ordered.findIndex(s => s.id === seg.id);
         prevBtn.disabled = currentSortedIdx <= 0;
         nextBtn.disabled = currentSortedIdx >= ordered.length - 1;
-        prevBtn.addEventListener("click", () => {
+        prevBtn.onclick = () => {
           if (currentSortedIdx > 0) navigateToClip(ordered[currentSortedIdx - 1]);
-        });
-        nextBtn.addEventListener("click", () => {
+        };
+        nextBtn.onclick = () => {
           if (currentSortedIdx < ordered.length - 1) navigateToClip(ordered[currentSortedIdx + 1]);
-        });
+        };
       };
+      const applyClipNavigationInput = () => {
+        const requestedIndex = parseInt(clipIndexInput.value, 10);
+        if (!Number.isFinite(requestedIndex)) {
+          refreshSegmentMeta();
+          return;
+        }
+        navigateToClipIndex(requestedIndex);
+      };
+      clipIndexInput.addEventListener("change", applyClipNavigationInput);
+      clipIndexInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") applyClipNavigationInput();
+      });
+      clipIndexInput.addEventListener("blur", () => refreshSegmentMeta());
       updateNavButtons();
       headerRight.appendChild(prevBtn);
       headerRight.appendChild(nextBtn);
+ 
+      var modalClipIndexInput = clipIndexInput;
+      var modalClipTotal = clipTotal;
+    } else {
+      title.textContent = "Global Prompt";
     }
 
     headerRight.appendChild(closeBtn);
@@ -2291,9 +2366,15 @@ class TimelineEditor {
     const refreshSegmentMeta = () => {
       const liveSeg = getLiveSeg();
       if (!liveSeg) return;
-      const ordered = [...this.timeline.segments].sort((a, b) => a.start - b.start);
+      const ordered = getOrderedSegments();
       const clipIndex = Math.max(1, ordered.findIndex(s => s.id === liveSeg.id) + 1);
-      title.textContent = `Clip #${clipIndex}`;
+      if (modalClipIndexInput) {
+        modalClipIndexInput.max = `${ordered.length}`;
+        modalClipIndexInput.value = `${clipIndex}`;
+      }
+      if (modalClipTotal) {
+        modalClipTotal.textContent = `of ${ordered.length}`;
+      }
       if (clipLengthUnit) {
         const inFrames = this.displayModeWidget?.value === "frames";
         clipLengthUnit.textContent = inFrames ? "frames" : "s";
@@ -2311,8 +2392,6 @@ class TimelineEditor {
       if (imagePrimaryBtn) imagePrimaryBtn.textContent = hasImage ? "Replace Image" : "Add Image";
       if (imageRemoveBtn) imageRemoveBtn.style.display = hasImage ? "inline-flex" : "none";
     };
-    title.textContent = isGlobal ? "Global Prompt" : "Selected Clip Prompt";
-
     if (!isGlobal) {
       const metaRow = document.createElement("div");
       metaRow.className = "pr-prompt-modal-meta";
@@ -2851,15 +2930,26 @@ class TimelineEditor {
       const clipIndex = segmentIndexMap.get(seg.id);
       if (clipIndex !== undefined && seg.type !== "ghost" && pxWidth > 20) {
         this.ctx.save();
-        const labelW = Math.min(46, pxWidth);
+        const labelText = `#${clipIndex}`;
+        this.ctx.font = "600 10px sans-serif";
+        const labelW = Math.min(pxWidth - 6, Math.max(38, this.ctx.measureText(labelText).width + 16));
+        const labelH = 16;
         const labelX = startX + (pxWidth - labelW) / 2;
-        this.ctx.fillStyle = "rgba(0,0,0,0.65)";
-        this.ctx.fillRect(labelX, RULER_HEIGHT + this.blockHeight - 14, labelW, 13);
-        this.ctx.fillStyle = "#f0f0f0";
-        this.ctx.font = "10px sans-serif";
+        const labelY = RULER_HEIGHT + this.blockHeight - labelH - 3;
+        this.ctx.fillStyle = isSelected ? "rgba(30, 78, 124, 0.95)" : "rgba(11, 23, 36, 0.9)";
+        this.ctx.strokeStyle = isSelected ? "rgba(191, 227, 255, 0.95)" : "rgba(121, 179, 231, 0.65)";
+        this.ctx.lineWidth = 1;
+        this.ctx.shadowColor = "rgba(0, 0, 0, 0.35)";
+        this.ctx.shadowBlur = 8;
+        this.ctx.beginPath();
+        this.ctx.roundRect(labelX, labelY, labelW, labelH, 6);
+        this.ctx.fill();
+        this.ctx.shadowBlur = 0;
+        this.ctx.stroke();
+        this.ctx.fillStyle = "#f3f8ff";
         this.ctx.textAlign = "center";
         this.ctx.textBaseline = "middle";
-        this.ctx.fillText(`#${clipIndex}`, labelX + labelW / 2, RULER_HEIGHT + this.blockHeight - 7);
+        this.ctx.fillText(labelText, labelX + labelW / 2, labelY + labelH / 2);
         this.ctx.restore();
       }
       this.ctx.globalAlpha = 1.0;
@@ -2880,18 +2970,20 @@ class TimelineEditor {
       }
 
       if (seg.type === "ghost") {
+        const audioRectY = trackY + AUDIO_TRACK_INSET_Y;
+        const audioRectH = Math.max(0, this.audioTrackHeight - AUDIO_TRACK_INSET_Y * 2);
         this.ctx.fillStyle = "#1a1a1a";
-        this.ctx.fillRect(startX, trackY, pxWidth, this.audioTrackHeight);
+        this.ctx.fillRect(startX, audioRectY, pxWidth, audioRectH);
         this.ctx.strokeStyle = "#555";
         this.ctx.lineWidth = 2;
         this.ctx.setLineDash([5, 5]);
-        this.ctx.strokeRect(startX, trackY, pxWidth, this.audioTrackHeight);
+        this.ctx.strokeRect(startX, audioRectY, pxWidth, audioRectH);
         this.ctx.setLineDash([]);
         this.ctx.fillStyle = "#888";
         this.ctx.textAlign = "center";
         this.ctx.textBaseline = "middle";
         this.ctx.font = "bold 12px sans-serif";
-        this.ctx.fillText("Drop Audio", startX + pxWidth / 2, trackY + this.audioTrackHeight / 2);
+        this.ctx.fillText("Drop Audio", startX + pxWidth / 2, audioRectY + audioRectH / 2);
       } else {
         this.drawAudioSegmentVisuals(this.ctx, seg, isSelected, trackY, this.audioTrackHeight, startX, pxWidth);
       }
@@ -3080,15 +3172,17 @@ class TimelineEditor {
   }
 
   drawAudioSegmentVisuals(ctx, seg, isSelected, yOffset, trackHeight, startX, pxWidth) {
+    const audioRectY = yOffset + AUDIO_TRACK_INSET_Y;
+    const audioRectH = Math.max(0, trackHeight - AUDIO_TRACK_INSET_Y * 2);
     ctx.fillStyle = isSelected ? "#2a4a3a" : "#1a2a1a";
-    ctx.fillRect(startX, yOffset + 2, pxWidth, trackHeight - 3);
+    ctx.fillRect(startX, audioRectY, pxWidth, audioRectH);
 
     if (seg.waveformPeaks && pxWidth > 0) {
       ctx.fillStyle = isSelected ? "rgba(100, 255, 100, 0.6)" : "rgba(100, 255, 100, 0.3)";
       const startRatio = seg.trimStart / seg.audioDurationFrames;
       const endRatio = (seg.trimStart + seg.length) / seg.audioDurationFrames;
       const peakCount = seg.waveformPeaks.length;
-      const centerY = yOffset + trackHeight / 2;
+      const centerY = audioRectY + audioRectH / 2;
 
       ctx.beginPath();
       for (let i = 0; i < pxWidth; i++) {
@@ -3098,7 +3192,7 @@ class TimelineEditor {
 
         if (peakIdx >= 0 && peakIdx < peakCount) {
           const val = seg.waveformPeaks[peakIdx];
-          const amp = (val * (trackHeight - 12) / 2) * 0.9;
+          const amp = (val * Math.max(0, audioRectH - 10) / 2) * 0.9;
           ctx.fillRect(startX + i, centerY - amp, 1, amp * 2);
         }
       }
@@ -3106,7 +3200,7 @@ class TimelineEditor {
 
     ctx.strokeStyle = isSelected ? "#4fff8f" : "#000";
     ctx.lineWidth = 1.5;
-    ctx.strokeRect(startX, yOffset + 2, pxWidth, trackHeight - 3);
+    ctx.strokeRect(startX, audioRectY, pxWidth, audioRectH);
 
     if (isSelected) {
       ctx.fillStyle = "#4fff8f";
@@ -3124,7 +3218,7 @@ class TimelineEditor {
     ctx.textAlign = "left";
     ctx.save();
     ctx.beginPath();
-    ctx.rect(startX, yOffset + 2, pxWidth, trackHeight - 3);
+    ctx.rect(startX, audioRectY, pxWidth, audioRectH);
     ctx.clip();
 
     let text = seg.fileName || "Audio Track";
@@ -3136,7 +3230,7 @@ class TimelineEditor {
       text = text + "...";
     }
 
-    ctx.fillText(text, startX + 6, yOffset + 8);
+    ctx.fillText(text, startX + 6, audioRectY + 6);
     ctx.restore();
   }
 
@@ -3793,14 +3887,14 @@ class TimelineEditor {
       if (seg.start > cursor) {
         const x0 = (cursor / totalFrames) * width;
         const x1 = (seg.start / totalFrames) * width;
-        gaps.push({ track: 'audio', frameStart: cursor, frameEnd: seg.start, centerX: (x0 + x1) / 2, centerY: RULER_HEIGHT + this.blockHeight + this.audioTrackHeight / 2, widthPx: x1 - x0 });
+        gaps.push({ track: 'audio', frameStart: cursor, frameEnd: seg.start, centerX: (x0 + x1) / 2, centerY: RULER_HEIGHT + this.blockHeight + AUDIO_TRACK_INSET_Y + (this.audioTrackHeight - AUDIO_TRACK_INSET_Y * 2) / 2, widthPx: x1 - x0 });
       }
       cursor = seg.start + seg.length;
     }
     if (cursor < outputFrames) {
       const x0 = (cursor / totalFrames) * width;
       const x1 = (outputFrames / totalFrames) * width;
-      gaps.push({ track: 'audio', frameStart: cursor, frameEnd: outputFrames, centerX: (x0 + x1) / 2, centerY: RULER_HEIGHT + this.blockHeight + this.audioTrackHeight / 2, widthPx: x1 - x0 });
+      gaps.push({ track: 'audio', frameStart: cursor, frameEnd: outputFrames, centerX: (x0 + x1) / 2, centerY: RULER_HEIGHT + this.blockHeight + AUDIO_TRACK_INSET_Y + (this.audioTrackHeight - AUDIO_TRACK_INSET_Y * 2) / 2, widthPx: x1 - x0 });
     }
 
     return gaps;
