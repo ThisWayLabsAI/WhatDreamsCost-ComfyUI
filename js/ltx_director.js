@@ -3112,11 +3112,10 @@ class TimelineEditor {
         setError("Nothing to copy.", "error");
         return;
       }
-      try {
-        await navigator.clipboard.writeText(textarea.value);
+      const copied = await this.copyTextToClipboard(textarea.value);
+      if (copied) {
         setError("Copied to clipboard.", "warning");
-      } catch (err) {
-        console.error("[LTXDirector] Clipboard copy failed", err);
+      } else {
         setError("Copy failed. Your browser may block clipboard access.", "error");
       }
     });
