@@ -1,3 +1,5 @@
+// @ts-check
+
 /**
  * @typedef {Object} ParsedShot
  * @property {number} shotNumber
@@ -72,9 +74,10 @@ function parseShotScriptDocument(text) {
 
     const headerMatch = line.match(SHOT_HEADER_REGEX);
     if (!headerMatch) {
+      const missingDuration = /^\s*SHOT\s+\d+\s*(?:\|\s*)?$/i.test(line);
       errors.push({
         line: i + 1,
-        message: "Invalid shot declaration:",
+        message: missingDuration ? "Missing duration:" : "Invalid shot declaration:",
         declaration: line,
       });
       continue;
