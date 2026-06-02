@@ -41,10 +41,13 @@ Also you will need to update ComfyUI-LTXVideo and ComfyUI-KJNodes to the latest 
 
 This fork includes additional LTX Director UI/UX polish on top of the upstream releases:
 
-- Added styled clip index badges in the timeline with improved spacing from prompt text.
-- Added direct manual clip number entry in the prompt modal and removed the extra prev/next modal navigation buttons.
-- Improved the prompt modal keyframe image area with clearer empty-state copy plus drag/drop and replace/remove image actions.
-- Refined timeline controls, including better audio lane add-button centering and related layout polish.
+- Made the global prompt always visible in the node, with copy/clear actions and an Apply to all clips checkbox that now controls whether the global prompt is actually used.
+- Added direct manual clip length/duration entry from both the main editor and the prompt modal.
+- Added Trim to Last Clip and Ripple Delete Gaps timeline actions for faster cleanup.
+- Added clip conversion actions so you can switch between Image+Prompt and Prompt-Only clips without wiping an existing prompt when removing the image.
+- Improved the prompt modal with direct clip number navigation plus drag/drop, replace, and remove keyframe image controls.
+- Added easier image replacement when dropping a new image onto an existing clip.
+- Refined the timeline presentation with styled clip index badges, improved prompt spacing, and better-centered audio gap controls.
 
 **v1.3.9**
   * **Fixed recent updates not showing in the manager**
