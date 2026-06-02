@@ -1356,8 +1356,8 @@ class TimelineEditor {
 
     const exportShotScriptBtn = document.createElement("button");
     exportShotScriptBtn.className = "pr-btn";
-    exportShotScriptBtn.textContent = "Export Clip Script";
-    exportShotScriptBtn.addEventListener("click", () => this.exportShotScript());
+    exportShotScriptBtn.textContent = "View/Export Clip Script";
+    exportShotScriptBtn.addEventListener("click", () => this.openShotScriptExportModal());
 
     const deleteBtn = document.createElement("button");
     deleteBtn.className = "pr-btn pr-btn-danger";
@@ -2956,6 +2956,14 @@ class TimelineEditor {
   }
 
   openShotScriptImportModal() {
+    this.openShotScriptModal("import");
+  }
+
+  openShotScriptExportModal() {
+    this.openShotScriptModal("export");
+  }
+
+  openShotScriptModal(initialMode = "import") {
     this.closeShotScriptImportModal();
     const { ShotScriptParseError, formatShotScriptParseErrors } = getShotScriptApi();
 
@@ -2969,10 +2977,18 @@ class TimelineEditor {
     toolbar.className = "pr-shot-script-toolbar";
 
     const title = document.createElement("div");
-    title.textContent = "Import Clip Script";
+    title.textContent = "Clip Script";
 
     const actions = document.createElement("div");
     actions.className = "pr-shot-script-actions";
+
+    const modeImportBtn = document.createElement("button");
+    modeImportBtn.className = "pr-mini-btn";
+    modeImportBtn.textContent = "Import";
+
+    const modeExportBtn = document.createElement("button");
+    modeExportBtn.className = "pr-mini-btn";
+    modeExportBtn.textContent = "View/Export";
 
     const fileInput = document.createElement("input");
     fileInput.type = "file";
@@ -2988,20 +3004,29 @@ class TimelineEditor {
     importBtn.className = "pr-mini-btn";
     importBtn.textContent = "Import";
 
+    const exportBtn = document.createElement("button");
+    exportBtn.className = "pr-mini-btn";
+    exportBtn.textContent = "Export";
+
     const closeBtn = document.createElement("button");
     closeBtn.className = "pr-mini-btn";
     closeBtn.textContent = "Close";
     closeBtn.addEventListener("click", () => this.closeShotScriptImportModal());
 
+    actions.appendChild(modeImportBtn);
+    actions.appendChild(modeExportBtn);
     actions.appendChild(loadFileBtn);
     actions.appendChild(importBtn);
+    actions.appendChild(exportBtn);
     actions.appendChild(closeBtn);
     toolbar.appendChild(title);
     toolbar.appendChild(actions);
 
     const hint = document.createElement("div");
     hint.className = "pr-shot-script-hint";
-    hint.textContent = "Paste a script with optional GLOBAL and optional VIDEO metadata blocks before required CLIP blocks. Import replaces the current clip timeline, preserves audio, and recalculates clip timing cumulatively.";
+    const importHint = "Paste a script with optional GLOBAL and optional VIDEO metadata blocks before required CLIP blocks. Import replaces the current clip timeline, preserves audio, and recalculates clip timing cumulatively.";
+    const exportHint = "Review the generated script before exporting it to a .txt file.";
+    hint.textContent = importHint;
 
     const errorBox = document.createElement("div");
     errorBox.className = "pr-shot-script-errors";
@@ -3013,6 +3038,33 @@ class TimelineEditor {
     const setError = (message = "", kind = "error") => {
       errorBox.classList.toggle("is-warning", kind === "warning");
       errorBox.textContent = message;
+    };
+    const setModeButtonState = (btn, active) => {
+      btn.style.opacity = active ? "1" : "0.7";
+      btn.style.fontWeight = active ? "600" : "400";
+    };
+    let mode = "import";
+    const setMode = (nextMode) => {
+      mode = nextMode === "export" ? "export" : "import";
+      const isImport = mode === "import";
+      title.textContent = isImport ? "Import Clip Script" : "View/Export Clip Script";
+      hint.textContent = isImport ? importHint : exportHint;
+      textarea.readOnly = !isImport;
+      textarea.placeholder = isImport ? "GLOBAL: Describe global prompt here.\n\nVIDEO:\nwidth: 1280\nheight: 720\ntotal_duration: 40\n\nCLIP 1 | 3s\nDescribe clip 1 here.\n\nCLIP 2 | 2.5s\nDescribe clip 2 here." : "";
+      loadFileBtn.style.display = isImport ? "" : "none";
+      importBtn.style.display = isImport ? "" : "none";
+      exportBtn.style.display = isImport ? "none" : "";
+      setModeButtonState(modeImportBtn, isImport);
+      setModeButtonState(modeExportBtn, !isImport);
+      if (!isImport) {
+        try {
+          textarea.value = this.buildShotScriptText();
+          setError("", "error");
+        } catch (err) {
+          console.error("[LTXDirector] Clip script export preview failed", err);
+          setError("Unable to generate clip script preview.", "error");
+        }
+      }
     };
 
     fileInput.addEventListener("change", async (event) => {
@@ -3046,6 +3098,18 @@ class TimelineEditor {
       }
     });
 
+    exportBtn.addEventListener("click", () => {
+      if (!textarea.value.trim()) {
+        setError("Nothing to export.", "error");
+        return;
+      }
+      this.exportShotScript(textarea.value);
+      setError("", "error");
+    });
+
+    modeImportBtn.addEventListener("click", () => setMode("import"));
+    modeExportBtn.addEventListener("click", () => setMode("export"));
+
     backdrop.addEventListener("mousedown", (event) => {
       if (event.target === backdrop) this.closeShotScriptImportModal();
     });
@@ -3063,6 +3127,7 @@ class TimelineEditor {
     backdrop.appendChild(modal);
     document.body.appendChild(backdrop);
     this._shotScriptModalEl = backdrop;
+    setMode(initialMode);
     textarea.focus();
   }
 
@@ -3153,10 +3218,12 @@ class TimelineEditor {
     return "";
   }
 
-  exportShotScript() {
+  buildShotScriptText() {
     const { exportTimelineToShotScript } = getShotScriptApi();
-    if (!exportTimelineToShotScript) return;
-    const text = exportTimelineToShotScript({
+    if (!exportTimelineToShotScript) {
+      throw new Error("Clip script exporter is unavailable.");
+    }
+    return exportTimelineToShotScript({
       globalPrompt: this.globalPromptWidget?.value || "",
       segments: this.timeline.segments,
       frameRate: this.getFrameRate(),
@@ -3166,7 +3233,12 @@ class TimelineEditor {
         totalDuration: this.getDurationFrames() / this.getFrameRate(),
       },
     });
-    const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+  }
+
+  exportShotScript(text = null) {
+    const exportText = typeof text === "string" ? text : this.buildShotScriptText();
+    if (!exportText) return;
+    const blob = new Blob([exportText], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
