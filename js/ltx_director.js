@@ -952,8 +952,22 @@ class TimelineEditor {
 
   autoSizeTextarea(textarea, maxHeight = 220) {
     if (!textarea) return;
+    const prevHeight = textarea.offsetHeight;
     textarea.style.height = "auto";
     textarea.style.height = `${Math.min(textarea.scrollHeight, maxHeight)}px`;
+    if (Math.abs(textarea.offsetHeight - prevHeight) > 0.5) {
+      this.requestNodeResize();
+    }
+  }
+
+  requestNodeResize() {
+    if (this.node && this.node.computeSize) {
+      const sz = this.node.computeSize();
+      this.node.size[1] = sz[1];
+      if (window.app && window.app.graph) {
+        window.app.graph.setDirtyCanvas(true, true);
+      }
+    }
   }
 
   getSelectedSegment() {
@@ -1143,8 +1157,8 @@ class TimelineEditor {
     actionGroup.appendChild(addTextBtn);
     actionGroup.appendChild(uploadAudioBtn);
     actionGroup.appendChild(deleteBtn);
-    actionGroup.appendChild(trimToLastBtn);
     actionGroup.appendChild(rippleDeleteBtn);
+    actionGroup.appendChild(trimToLastBtn);
     toolbar.appendChild(actionGroup);
 
     const rightGroup = document.createElement("div");
@@ -4705,6 +4719,7 @@ app.registerExtension({
           compWidget.value = 18;
         }
 
+        const self = this;
         const container = document.createElement("div");
         const widget = this.addDOMWidget("timeline_ui", "timeline_ui", container, {
           getValue: () => "",
@@ -4713,10 +4728,13 @@ app.registerExtension({
 
         widget.computeSize = function (width) {
           const canvasH = self._timelineEditor ? self._timelineEditor.canvasHeight : CANVAS_HEIGHT;
+          if (self._timelineEditor?.wrapper) {
+            const measuredH = Math.ceil(self._timelineEditor.wrapper.scrollHeight);
+            return [width, Math.max(canvasH + 320, measuredH + 16)];
+          }
           return [width, canvasH + 320];
         };
 
-        const self = this;
         setTimeout(() => {
           try {
             self._timelineEditor = new TimelineEditor(self, container, widget);
