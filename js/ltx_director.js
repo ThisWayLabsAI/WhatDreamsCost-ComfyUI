@@ -497,6 +497,14 @@ const STYLES = `
     flex-wrap: wrap;
     width: 100%;
   }
+  .pr-timeline-actions {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    width: 100%;
+  }
   .pr-icon-btn {
     background: #2a2a2a;
     border: 1px solid #444;
@@ -1294,14 +1302,25 @@ class TimelineEditor {
     deleteBtn.innerHTML = `${ICONS.trash} Delete`;
     deleteBtn.addEventListener("click", () => this.deleteSelectedSegment());
 
+    const trimBtn = document.createElement("button");
+    trimBtn.className = "pr-btn";
+    trimBtn.textContent = "Trim";
+    trimBtn.addEventListener("click", () => this.trimDurationToLastClip());
+
     const trimToLastBtn = document.createElement("button");
     trimToLastBtn.className = "pr-btn";
     trimToLastBtn.textContent = "Trim to Last Clip";
     trimToLastBtn.addEventListener("click", () => this.trimDurationToLastClip());
+
     const rippleDeleteBtn = document.createElement("button");
     rippleDeleteBtn.className = "pr-btn";
     rippleDeleteBtn.textContent = "Ripple Delete Gaps";
     rippleDeleteBtn.addEventListener("click", () => this.rippleDeleteTrackGaps());
+
+    const resetTimelineBtn = document.createElement("button");
+    resetTimelineBtn.className = "pr-btn pr-btn-danger";
+    resetTimelineBtn.innerHTML = `${ICONS.clear} Reset Timeline + Global`;
+    resetTimelineBtn.addEventListener("click", () => this.resetGlobalPromptAndTimeline());
 
     actionGroup.appendChild(this.fileInput);
     actionGroup.appendChild(this.audioFileInput);
@@ -1310,9 +1329,6 @@ class TimelineEditor {
     actionGroup.appendChild(uploadAudioBtn);
     actionGroup.appendChild(importShotScriptBtn);
     actionGroup.appendChild(exportShotScriptBtn);
-    actionGroup.appendChild(deleteBtn);
-    actionGroup.appendChild(rippleDeleteBtn);
-    actionGroup.appendChild(trimToLastBtn);
     toolbar.appendChild(actionGroup);
 
     const rightGroup = document.createElement("div");
@@ -1684,6 +1700,13 @@ class TimelineEditor {
     // --- Player Controls ---
     const playerControls = document.createElement("div");
     playerControls.className = "pr-player-controls";
+    const timelineActions = document.createElement("div");
+    timelineActions.className = "pr-timeline-actions";
+    timelineActions.appendChild(deleteBtn);
+    timelineActions.appendChild(trimBtn);
+    timelineActions.appendChild(rippleDeleteBtn);
+    timelineActions.appendChild(trimToLastBtn);
+    timelineActions.appendChild(resetTimelineBtn);
 
     this.playBtn = document.createElement("button");
     this.playBtn.className = "pr-icon-btn";
@@ -1890,6 +1913,7 @@ class TimelineEditor {
     const controlsGroup = document.createElement("div");
     controlsGroup.className = "pr-controls-group";
     controlsGroup.appendChild(this.strengthRow);
+    controlsGroup.appendChild(timelineActions);
     controlsGroup.appendChild(playerControls);
     this.wrapper.appendChild(controlsGroup);
     this.wrapper.appendChild(propContainer);
@@ -2259,6 +2283,33 @@ class TimelineEditor {
     if (this.durationSecondsWidget) {
       this.durationSecondsWidget.value = parseFloat((newFrames / this.getFrameRate()).toFixed(3));
     }
+    this.commitChanges();
+  }
+
+  resetGlobalPromptAndTimeline() {
+    const hasTimeline = (this.timeline.segments?.length || 0) > 0 || (this.timeline.audioSegments?.length || 0) > 0;
+    const hasGlobalPrompt = !!(this.globalPromptWidget?.value || this.globalPromptInput?.value || "").trim();
+    if (!hasTimeline && !hasGlobalPrompt) return;
+
+    const confirmed = window.confirm("Reset timeline and global prompt? This will remove all clips and audio segments.");
+    if (!confirmed) return;
+
+    this.pauseAudio(true);
+    this.timeline = { segments: [], audioSegments: [] };
+    this.selectionType = "image";
+    this.selectedIndex = -1;
+    this.currentFrame = 0;
+
+    if (this.globalPromptWidget) {
+      this.globalPromptWidget.value = "";
+      if (this.globalPromptWidget.callback) this.globalPromptWidget.callback("");
+    }
+    if (this.globalPromptInput) {
+      this.globalPromptInput.value = "";
+      this.autoSizeTextarea(this.globalPromptInput, 220);
+    }
+
+    this.updateUIFromSelection();
     this.commitChanges();
   }
 
@@ -2709,7 +2760,7 @@ class TimelineEditor {
 
     const hint = document.createElement("div");
     hint.className = "pr-shot-script-hint";
-    hint.textContent = "Paste a script with optional GLOBAL and required SHOT blocks (`GLOBAL: ...` preferred; legacy `GLOBAL:` block still supported). Import replaces the current clip timeline, preserves audio, and recalculates clip timing cumulatively.";
+    hint.textContent = "Paste a script with optional GLOBAL and required SHOT blocks. Import replaces the current clip timeline, preserves audio, and recalculates clip timing cumulatively.";
 
     const errorBox = document.createElement("div");
     errorBox.className = "pr-shot-script-errors";
