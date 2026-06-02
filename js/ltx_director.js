@@ -2650,8 +2650,10 @@ class TimelineEditor {
     const getOrderedSegments = () => [...this.timeline.segments].sort((a, b) => a.start - b.start);
     let modalClipIndexInput = null;
     let modalClipTotal = null;
+    let modalFirstClipBtn = null;
     let modalPrevClipBtn = null;
     let modalNextClipBtn = null;
+    let modalLastClipBtn = null;
 
     if (!isGlobal) {
       const clipNav = document.createElement("div");
@@ -2664,17 +2666,25 @@ class TimelineEditor {
       clipIndexInput.step = "1";
       clipIndexInput.className = "pr-prompt-modal-clip-input";
       const clipTotal = document.createElement("span");
+      const firstClipBtn = document.createElement("button");
+      firstClipBtn.className = "pr-mini-btn pr-prompt-modal-nav-btn";
+      firstClipBtn.textContent = "First";
       const prevClipBtn = document.createElement("button");
       prevClipBtn.className = "pr-mini-btn pr-prompt-modal-nav-btn";
       prevClipBtn.textContent = "Prev";
       const nextClipBtn = document.createElement("button");
       nextClipBtn.className = "pr-mini-btn pr-prompt-modal-nav-btn";
       nextClipBtn.textContent = "Next";
+      const lastClipBtn = document.createElement("button");
+      lastClipBtn.className = "pr-mini-btn pr-prompt-modal-nav-btn";
+      lastClipBtn.textContent = "Last";
       clipNav.appendChild(clipLabel);
       clipNav.appendChild(clipIndexInput);
       clipNav.appendChild(clipTotal);
+      clipNav.appendChild(firstClipBtn);
       clipNav.appendChild(prevClipBtn);
       clipNav.appendChild(nextClipBtn);
+      clipNav.appendChild(lastClipBtn);
       title.appendChild(clipNav);
 
       const navigateToClip = (targetSeg) => {
@@ -2706,6 +2716,7 @@ class TimelineEditor {
         if (e.key === "Enter") applyClipNavigationInput();
       });
       clipIndexInput.addEventListener("blur", () => refreshSegmentMeta());
+      firstClipBtn.addEventListener("click", () => navigateToClipIndex(1));
       prevClipBtn.addEventListener("click", () => {
         const liveSeg = getLiveSeg();
         if (!liveSeg) return;
@@ -2720,11 +2731,17 @@ class TimelineEditor {
         const clipIndex = ordered.findIndex(s => s.id === liveSeg.id) + 1;
         if (clipIndex > 0 && clipIndex < ordered.length) navigateToClipIndex(clipIndex + 1);
       });
+      lastClipBtn.addEventListener("click", () => {
+        const ordered = getOrderedSegments();
+        if (ordered.length > 0) navigateToClipIndex(ordered.length);
+      });
 
       modalClipIndexInput = clipIndexInput;
       modalClipTotal = clipTotal;
+      modalFirstClipBtn = firstClipBtn;
       modalPrevClipBtn = prevClipBtn;
       modalNextClipBtn = nextClipBtn;
+      modalLastClipBtn = lastClipBtn;
     } else {
       title.textContent = "Global Prompt";
     }
@@ -2758,11 +2775,17 @@ class TimelineEditor {
       if (modalClipTotal) {
         modalClipTotal.textContent = `of ${ordered.length}`;
       }
+      if (modalFirstClipBtn) {
+        modalFirstClipBtn.disabled = clipIndex <= 1;
+      }
       if (modalPrevClipBtn) {
         modalPrevClipBtn.disabled = clipIndex <= 1;
       }
       if (modalNextClipBtn) {
         modalNextClipBtn.disabled = clipIndex >= ordered.length;
+      }
+      if (modalLastClipBtn) {
+        modalLastClipBtn.disabled = clipIndex >= ordered.length;
       }
       if (clipLengthUnit) {
         const inFrames = this.displayModeWidget?.value === "frames";
