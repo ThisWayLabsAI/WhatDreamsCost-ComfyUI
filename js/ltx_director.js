@@ -3,7 +3,7 @@ const { api } = window.comfyAPI.api;
 
 // --- UI Constants & Configuration ---
 const RULER_HEIGHT = 24;
-const BLOCK_HEIGHT = 160; // Increased to make the image timeline area much taller
+const BLOCK_HEIGHT = 120;
 const AUDIO_TRACK_HEIGHT = 80;
 const CANVAS_HEIGHT = RULER_HEIGHT + BLOCK_HEIGHT + AUDIO_TRACK_HEIGHT;
 const HANDLE_HIT_PX = 14;
@@ -226,6 +226,10 @@ const STYLES = `
     border-radius: 6px;
     padding: 8px;
     background: #171717;
+  }
+  .pr-prompt-modal-image.drag-active {
+    border-color: #6a6a6a;
+    background: #1f1f1f;
   }
   .pr-prompt-modal-image-preview {
     width: 100%;
@@ -523,6 +527,34 @@ const STYLES = `
     box-sizing: border-box;
     overflow-y: auto;
   }
+  .pr-input-tools {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+  }
+  .pr-input-icon-btn {
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    background: #2a2a2a;
+    border: 1px solid #444;
+    color: #eee;
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .pr-input-icon-btn * {
+    pointer-events: none;
+  }
+  .pr-input-icon-btn:hover {
+    color: #fff;
+    background: #3a3a3a;
+    border-color: #666;
+  }
   .pr-segment-bounds {
     font-size: 12px;
     color: #aaa;
@@ -712,6 +744,8 @@ const ICONS = {
   plus: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>`,
   fit: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><polyline points="8 7 3 12 8 17"></polyline><polyline points="16 7 21 12 16 17"></polyline></svg>`,
   gear: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>`,
+  copy: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`,
+  clear: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`,
   close: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`
 };
 
@@ -906,6 +940,16 @@ class TimelineEditor {
     this.autoSizeTextarea(this.globalPromptInput, 220);
   }
 
+  async copyTextToClipboard(text) {
+    try {
+      await navigator.clipboard.writeText(text || "");
+      return true;
+    } catch (err) {
+      console.error("[PromptRelay] Failed to copy text", err);
+      return false;
+    }
+  }
+
   autoSizeTextarea(textarea, maxHeight = 220) {
     if (!textarea) return;
     textarea.style.height = "auto";
@@ -1088,6 +1132,10 @@ class TimelineEditor {
     trimToLastBtn.className = "pr-btn";
     trimToLastBtn.textContent = "Trim to Last Clip";
     trimToLastBtn.addEventListener("click", () => this.trimDurationToLastClip());
+    const rippleDeleteBtn = document.createElement("button");
+    rippleDeleteBtn.className = "pr-btn";
+    rippleDeleteBtn.textContent = "Ripple Delete Gaps";
+    rippleDeleteBtn.addEventListener("click", () => this.rippleDeleteTrackGaps());
 
     actionGroup.appendChild(this.fileInput);
     actionGroup.appendChild(this.audioFileInput);
@@ -1096,6 +1144,7 @@ class TimelineEditor {
     actionGroup.appendChild(uploadAudioBtn);
     actionGroup.appendChild(deleteBtn);
     actionGroup.appendChild(trimToLastBtn);
+    actionGroup.appendChild(rippleDeleteBtn);
     toolbar.appendChild(actionGroup);
 
     const rightGroup = document.createElement("div");
@@ -1126,7 +1175,6 @@ class TimelineEditor {
         this.showSettingsMenu(settingsBtn);
       }
     });
-
     const toggleBtn = document.createElement("button");
     toggleBtn.className = "pr-btn";
     toggleBtn.style.padding = "6px 8px";
@@ -1230,8 +1278,27 @@ class TimelineEditor {
       this.autoSizeTextarea(this.globalPromptInput, 220);
     });
     this.globalPromptInput.addEventListener("dblclick", () => this.openPromptEditorModal("global"));
+    const globalPromptTools = document.createElement("div");
+    globalPromptTools.className = "pr-input-tools";
+    const globalCopyBtn = document.createElement("button");
+    globalCopyBtn.className = "pr-input-icon-btn";
+    globalCopyBtn.innerHTML = ICONS.copy;
+    globalCopyBtn.title = "Copy global prompt";
+    globalCopyBtn.addEventListener("click", () => this.copyTextToClipboard(this.globalPromptInput.value));
+    const globalClearBtn = document.createElement("button");
+    globalClearBtn.className = "pr-input-icon-btn";
+    globalClearBtn.innerHTML = ICONS.clear;
+    globalClearBtn.title = "Clear global prompt";
+    globalClearBtn.addEventListener("click", () => {
+      this.globalPromptInput.value = "";
+      this.globalPromptInput.dispatchEvent(new Event("input"));
+      this.globalPromptInput.focus();
+    });
+    globalPromptTools.appendChild(globalCopyBtn);
+    globalPromptTools.appendChild(globalClearBtn);
 
     globalPromptContainer.appendChild(globalPromptHead);
+    globalPromptContainer.appendChild(globalPromptTools);
     globalPromptContainer.appendChild(this.globalPromptInput);
     this.syncGlobalPromptInputFromWidget();
 
@@ -1306,12 +1373,31 @@ class TimelineEditor {
       }
     });
     this.promptInput.addEventListener("dblclick", () => this.openPromptEditorModal("segment"));
+    this.segmentPromptTools = document.createElement("div");
+    this.segmentPromptTools.className = "pr-input-tools";
+    this.segmentCopyBtn = document.createElement("button");
+    this.segmentCopyBtn.className = "pr-input-icon-btn";
+    this.segmentCopyBtn.innerHTML = ICONS.copy;
+    this.segmentCopyBtn.title = "Copy clip prompt";
+    this.segmentCopyBtn.addEventListener("click", () => this.copyTextToClipboard(this.promptInput.value));
+    this.segmentClearBtn = document.createElement("button");
+    this.segmentClearBtn.className = "pr-input-icon-btn";
+    this.segmentClearBtn.innerHTML = ICONS.clear;
+    this.segmentClearBtn.title = "Clear clip prompt";
+    this.segmentClearBtn.addEventListener("click", () => {
+      this.promptInput.value = "";
+      this.promptInput.dispatchEvent(new Event("input"));
+      this.promptInput.focus();
+    });
+    this.segmentPromptTools.appendChild(this.segmentCopyBtn);
+    this.segmentPromptTools.appendChild(this.segmentClearBtn);
 
     // --- Audio Info Area ---
     this.audioInfoArea = document.createElement("div");
     this.audioInfoArea.className = "pr-audio-info";
 
     propContainer.appendChild(this.clipLengthRow);
+    propContainer.appendChild(this.segmentPromptTools);
     propContainer.appendChild(this.promptInput);
     propContainer.appendChild(this.audioInfoArea);
 
@@ -2136,7 +2222,7 @@ class TimelineEditor {
       if (!liveSeg) return;
       const ordered = [...this.timeline.segments].sort((a, b) => a.start - b.start);
       const clipIndex = Math.max(1, ordered.findIndex(s => s.id === liveSeg.id) + 1);
-      title.textContent = `Clip #${clipIndex} | Length: ${this.formatTime(liveSeg.length, true)}`;
+      title.textContent = `Clip #${clipIndex}`;
       if (clipLengthUnit) {
         const inFrames = this.displayModeWidget?.value === "frames";
         clipLengthUnit.textContent = inFrames ? "frames" : "s";
@@ -2210,10 +2296,8 @@ class TimelineEditor {
       imageFileInput.accept = "image/*";
       imageFileInput.style.display = "none";
       imagePrimaryBtn.addEventListener("click", () => imageFileInput.click());
-      imageFileInput.addEventListener("change", async (ev) => {
-        const file = ev.target.files?.[0];
-        imageFileInput.value = "";
-        if (!file) return;
+      const applyModalImageFile = async (file) => {
+        if (!file || !file.type.startsWith("image/")) return;
         const liveSeg = getLiveSeg();
         if (!liveSeg) return;
         try {
@@ -2234,6 +2318,26 @@ class TimelineEditor {
         } catch (err) {
           console.error("[PromptRelay] Modal image upload failed", err);
         }
+      };
+      imageFileInput.addEventListener("change", async (ev) => {
+        const file = ev.target.files?.[0];
+        imageFileInput.value = "";
+        await applyModalImageFile(file);
+      });
+      imageContainer.addEventListener("dragover", (ev) => {
+        ev.preventDefault();
+        imageContainer.classList.add("drag-active");
+      });
+      imageContainer.addEventListener("dragleave", (ev) => {
+        if (!imageContainer.contains(ev.relatedTarget)) {
+          imageContainer.classList.remove("drag-active");
+        }
+      });
+      imageContainer.addEventListener("drop", async (ev) => {
+        ev.preventDefault();
+        imageContainer.classList.remove("drag-active");
+        const file = ev.dataTransfer?.files?.[0];
+        await applyModalImageFile(file);
       });
       imageRemoveBtn.addEventListener("click", () => {
         const liveSeg = getLiveSeg();
@@ -2280,6 +2384,24 @@ class TimelineEditor {
         this.render();
       }
     });
+    const modalPromptTools = document.createElement("div");
+    modalPromptTools.className = "pr-input-tools";
+    const modalCopyBtn = document.createElement("button");
+    modalCopyBtn.className = "pr-input-icon-btn";
+    modalCopyBtn.innerHTML = ICONS.copy;
+    modalCopyBtn.title = "Copy prompt";
+    modalCopyBtn.addEventListener("click", () => this.copyTextToClipboard(textarea.value));
+    const modalClearBtn = document.createElement("button");
+    modalClearBtn.className = "pr-input-icon-btn";
+    modalClearBtn.innerHTML = ICONS.clear;
+    modalClearBtn.title = "Clear prompt";
+    modalClearBtn.addEventListener("click", () => {
+      textarea.value = "";
+      textarea.dispatchEvent(new Event("input"));
+      textarea.focus();
+    });
+    modalPromptTools.appendChild(modalCopyBtn);
+    modalPromptTools.appendChild(modalClearBtn);
 
     backdrop.addEventListener("mousedown", (e) => {
       if (e.target === backdrop) this.closePromptEditorModal();
@@ -2289,6 +2411,7 @@ class TimelineEditor {
     };
     document.addEventListener("keydown", this._modalEscHandler);
 
+    modal.appendChild(modalPromptTools);
     modal.appendChild(textarea);
     backdrop.appendChild(modal);
     document.body.appendChild(backdrop);
@@ -2376,6 +2499,7 @@ class TimelineEditor {
 
     if (this.selectionType === "audio" && seg) {
       this.promptInput.style.display = "none";
+      if (this.segmentPromptTools) this.segmentPromptTools.style.display = "none";
       this.strengthRow.style.display = "flex";
       this.audioInfoArea.style.display = "block";
       this.audioInfoArea.innerHTML = `
@@ -2388,11 +2512,14 @@ class TimelineEditor {
     } else {
       this.audioInfoArea.style.display = "none";
       this.promptInput.style.display = "block";
+      if (this.segmentPromptTools) this.segmentPromptTools.style.display = "flex";
       this.strengthRow.style.display = "flex";
 
       if (seg) {
         this.promptInput.value = seg.prompt || "";
         this.promptInput.disabled = false;
+        if (this.segmentCopyBtn) this.segmentCopyBtn.disabled = false;
+        if (this.segmentClearBtn) this.segmentClearBtn.disabled = false;
 
         const isImage = seg.type !== "text";
         const strength = isImage ? (seg.guideStrength ?? 1.0) : 1.0;
@@ -2401,6 +2528,8 @@ class TimelineEditor {
       } else {
         this.promptInput.value = "";
         this.promptInput.disabled = true;
+        if (this.segmentCopyBtn) this.segmentCopyBtn.disabled = true;
+        if (this.segmentClearBtn) this.segmentClearBtn.disabled = true;
         this.strengthValue.value = "1.00";
         this.strengthValue.disabled = true;
       }
