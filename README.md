@@ -43,7 +43,8 @@ This fork includes additional LTX Director UI/UX polish on top of the upstream r
 
 - Made the global prompt always visible in the node, with copy/clear actions and an Apply to all clips checkbox that now controls whether the global prompt is actually used.
 - Added direct manual clip length/duration entry from both the main editor and the prompt modal.
-- Added Trim to Last Clip and Ripple Delete Gaps timeline actions for faster cleanup.
+- Added Trim to Last Clip, Ripple Delete, and Ripple Delete Gaps timeline actions for faster cleanup.
+- Replaced reset browser alerts with a styled confirm modal and separated destructive timeline actions into their own controls section.
 - Added clip conversion actions so you can switch between Image+Prompt and Prompt-Only clips without wiping an existing prompt when removing the image.
 - Added a prompt modal with direct clip number navigation, clip image drag/drop-replace-remove controls, and quick prompt copy/clear actions. Double-clicking the Global Prompt or Prompt input fields open the prompt modal.
 - Added shot script import/export. Example format: `GLOBAL: cinematic sunset skyline` then `SHOT 1 | 3s` with the shot prompt below.

@@ -152,6 +152,12 @@ const STYLES = `
     cursor: pointer;
   }
   .pr-mini-btn:hover { background: #2e2e2e; border-color: #555; }
+  .pr-controls-label {
+    color: #d7d7d7;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
   .pr-clip-length-row {
     display: flex;
     align-items: center;
@@ -370,6 +376,35 @@ const STYLES = `
     line-height: 1.5;
     white-space: pre-wrap;
   }
+  .pr-confirm-modal {
+    width: min(92vw, 420px);
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 10px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    box-sizing: border-box;
+    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.45);
+  }
+  .pr-confirm-modal-title {
+    color: #f4f4f4;
+    font-size: 13px;
+    font-weight: 700;
+  }
+  .pr-confirm-modal-message {
+    color: #c9c9c9;
+    font-size: 11px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+  }
+  .pr-confirm-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
   .pr-controls-group {
     background: #1e1e1e;
     border: 1px solid #333;
@@ -486,6 +521,14 @@ const STYLES = `
   .pr-gap-menu-btn:hover {
     background: #3a3a3a;
     border-color: #666;
+  }
+  .pr-gap-menu-btn-danger {
+    color: #ff7676;
+  }
+  .pr-gap-menu-btn-danger:hover {
+    background: #4a1515;
+    border-color: #8f2f2f;
+    color: #ffb0b0;
   }
   .pr-player-controls {
     display: flex;
@@ -1301,15 +1344,20 @@ class TimelineEditor {
     deleteBtn.innerHTML = `${ICONS.trash} Delete`;
     deleteBtn.addEventListener("click", () => this.deleteSelectedSegment());
 
+    const rippleDeleteSelectedBtn = document.createElement("button");
+    rippleDeleteSelectedBtn.className = "pr-btn pr-btn-danger";
+    rippleDeleteSelectedBtn.textContent = "Ripple Delete";
+    rippleDeleteSelectedBtn.addEventListener("click", () => this.rippleDeleteSelectedSegment());
+
     const trimToLastBtn = document.createElement("button");
     trimToLastBtn.className = "pr-btn";
     trimToLastBtn.textContent = "Trim to Last Clip";
     trimToLastBtn.addEventListener("click", () => this.trimDurationToLastClip());
 
-    const rippleDeleteBtn = document.createElement("button");
-    rippleDeleteBtn.className = "pr-btn";
-    rippleDeleteBtn.textContent = "Ripple Delete Gaps";
-    rippleDeleteBtn.addEventListener("click", () => this.rippleDeleteTrackGaps());
+    const rippleDeleteGapsBtn = document.createElement("button");
+    rippleDeleteGapsBtn.className = "pr-btn";
+    rippleDeleteGapsBtn.textContent = "Ripple Delete Gaps";
+    rippleDeleteGapsBtn.addEventListener("click", () => this.rippleDeleteTrackGaps());
 
     const resetTimelineOnlyBtn = document.createElement("button");
     resetTimelineOnlyBtn.className = "pr-btn pr-btn-danger";
@@ -1702,10 +1750,19 @@ class TimelineEditor {
     const timelineActions = document.createElement("div");
     timelineActions.className = "pr-timeline-actions";
     timelineActions.appendChild(deleteBtn);
-    timelineActions.appendChild(rippleDeleteBtn);
+    timelineActions.appendChild(rippleDeleteSelectedBtn);
+    timelineActions.appendChild(rippleDeleteGapsBtn);
     timelineActions.appendChild(trimToLastBtn);
     timelineActions.appendChild(resetTimelineOnlyBtn);
     timelineActions.appendChild(resetTimelineBtn);
+
+    const timelineActionsGroup = document.createElement("div");
+    timelineActionsGroup.className = "pr-controls-group";
+    const timelineActionsLabel = document.createElement("div");
+    timelineActionsLabel.className = "pr-controls-label";
+    timelineActionsLabel.textContent = "Timeline Actions";
+    timelineActionsGroup.appendChild(timelineActionsLabel);
+    timelineActionsGroup.appendChild(timelineActions);
 
     this.playBtn = document.createElement("button");
     this.playBtn.className = "pr-icon-btn";
@@ -1908,10 +1965,10 @@ class TimelineEditor {
     this.wrapper.appendChild(toolbar);
     this.wrapper.appendChild(globalPromptContainer);
     this.wrapper.appendChild(this.viewport);
+    this.wrapper.appendChild(timelineActionsGroup);
 
     const controlsGroup = document.createElement("div");
     controlsGroup.className = "pr-controls-group";
-    controlsGroup.appendChild(timelineActions);
     controlsGroup.appendChild(this.strengthRow);
     controlsGroup.appendChild(playerControls);
     this.wrapper.appendChild(controlsGroup);
@@ -2273,24 +2330,134 @@ class TimelineEditor {
     this.render();
   }
 
-  trimDurationToLastClip() {
+  recalculateTimelineDuration(options = {}) {
+    const { keepIfEmpty = false } = options;
     const all = [...(this.timeline.segments || []), ...(this.timeline.audioSegments || [])];
-    if (!all.length) return;
+    if (!all.length) {
+      if (keepIfEmpty) return false;
+      if (this.durationFramesWidget) this.durationFramesWidget.value = 1;
+      if (this.durationSecondsWidget) {
+        this.durationSecondsWidget.value = parseFloat((1 / this.getFrameRate()).toFixed(3));
+      }
+      return true;
+    }
     const lastEnd = Math.max(...all.map(s => (s.start || 0) + (s.length || 0)));
     const newFrames = Math.max(1, Math.ceil(lastEnd));
     if (this.durationFramesWidget) this.durationFramesWidget.value = newFrames;
     if (this.durationSecondsWidget) {
       this.durationSecondsWidget.value = parseFloat((newFrames / this.getFrameRate()).toFixed(3));
     }
+    return true;
+  }
+
+  rippleDeleteSelectedSegment() {
+    const segments = this.selectionType === "audio" ? this.timeline.audioSegments : this.timeline.segments;
+    if (!segments?.length || this.selectedIndex < 0 || this.selectedIndex >= segments.length) return;
+    const removed = segments[this.selectedIndex];
+    const removedStart = removed.start || 0;
+    const removedLength = removed.length || 0;
+    segments.splice(this.selectedIndex, 1);
+    for (const seg of segments) {
+      if (seg.start > removedStart) {
+        seg.start = Math.max(0, seg.start - removedLength);
+      }
+    }
+    this.selectedIndex = segments.length ? Math.min(this.selectedIndex, segments.length - 1) : -1;
+    this.recalculateTimelineDuration();
+    this.updateUIFromSelection();
     this.commitChanges();
   }
 
-  resetGlobalPromptAndTimeline() {
+  trimDurationToLastClip() {
+    if (!this.recalculateTimelineDuration({ keepIfEmpty: true })) return;
+    this.commitChanges();
+  }
+
+  openConfirmModal({
+    title = "Confirm Action",
+    message = "",
+    confirmLabel = "Confirm",
+    cancelLabel = "Cancel"
+  } = {}) {
+    this.closeConfirmModal(false);
+    return new Promise((resolve) => {
+      const backdrop = document.createElement("div");
+      backdrop.className = "pr-prompt-modal-backdrop";
+
+      const modal = document.createElement("div");
+      modal.className = "pr-confirm-modal";
+
+      const titleEl = document.createElement("div");
+      titleEl.className = "pr-confirm-modal-title";
+      titleEl.textContent = title;
+
+      const messageEl = document.createElement("div");
+      messageEl.className = "pr-confirm-modal-message";
+      messageEl.textContent = message;
+
+      const actions = document.createElement("div");
+      actions.className = "pr-confirm-modal-actions";
+
+      const cancelBtn = document.createElement("button");
+      cancelBtn.className = "pr-mini-btn";
+      cancelBtn.textContent = cancelLabel;
+      cancelBtn.addEventListener("click", () => this.closeConfirmModal(false));
+
+      const confirmBtn = document.createElement("button");
+      confirmBtn.className = "pr-mini-btn";
+      confirmBtn.textContent = confirmLabel;
+      confirmBtn.style.color = "#ff8a8a";
+      confirmBtn.addEventListener("click", () => this.closeConfirmModal(true));
+
+      actions.appendChild(cancelBtn);
+      actions.appendChild(confirmBtn);
+      modal.appendChild(titleEl);
+      modal.appendChild(messageEl);
+      modal.appendChild(actions);
+      backdrop.appendChild(modal);
+
+      backdrop.addEventListener("mousedown", (event) => {
+        if (event.target === backdrop) this.closeConfirmModal(false);
+      });
+
+      this._confirmModalEscHandler = (event) => {
+        if (event.key === "Escape") this.closeConfirmModal(false);
+      };
+      document.addEventListener("keydown", this._confirmModalEscHandler);
+
+      this._confirmModalResolver = resolve;
+      this._confirmModalEl = backdrop;
+      document.body.appendChild(backdrop);
+      confirmBtn.focus();
+    });
+  }
+
+  closeConfirmModal(confirmed = false) {
+    if (this._confirmModalEl) {
+      this._confirmModalEl.remove();
+      this._confirmModalEl = null;
+    }
+    if (this._confirmModalEscHandler) {
+      document.removeEventListener("keydown", this._confirmModalEscHandler);
+      this._confirmModalEscHandler = null;
+    }
+    if (this._confirmModalResolver) {
+      const resolve = this._confirmModalResolver;
+      this._confirmModalResolver = null;
+      resolve(confirmed);
+    }
+  }
+
+  async resetGlobalPromptAndTimeline() {
     const hasTimeline = (this.timeline.segments?.length || 0) > 0 || (this.timeline.audioSegments?.length || 0) > 0;
     const hasGlobalPrompt = !!(this.globalPromptWidget?.value || this.globalPromptInput?.value || "").trim();
     if (!hasTimeline && !hasGlobalPrompt) return;
 
-    const confirmed = window.confirm("Reset timeline and global prompt? This will remove all clips and audio segments.");
+    const confirmed = await this.openConfirmModal({
+      title: "Reset timeline and global prompt?",
+      message: "This will remove all clips and audio segments and clear the global prompt.",
+      confirmLabel: "Reset All"
+    });
     if (!confirmed) return;
 
     this.pauseAudio(true);
@@ -2312,11 +2479,15 @@ class TimelineEditor {
     this.commitChanges();
   }
 
-  resetTimelineOnly() {
+  async resetTimelineOnly() {
     const hasTimeline = (this.timeline.segments?.length || 0) > 0 || (this.timeline.audioSegments?.length || 0) > 0;
     if (!hasTimeline) return;
 
-    const confirmed = window.confirm("Reset timeline? This will remove all clips and audio segments.");
+    const confirmed = await this.openConfirmModal({
+      title: "Reset timeline?",
+      message: "This will remove all clips and audio segments.",
+      confirmLabel: "Reset Timeline"
+    });
     if (!confirmed) return;
 
     this.pauseAudio(true);
@@ -4435,10 +4606,21 @@ class TimelineEditor {
       menu.appendChild(pasteReplaceBtn);
     }
 
+    const rippleDeleteBtn = document.createElement("button");
+    rippleDeleteBtn.className = "pr-gap-menu-btn pr-gap-menu-btn-danger";
+    rippleDeleteBtn.innerHTML = `Ripple Delete`;
+    rippleDeleteBtn.onclick = () => {
+      this.selectionType = trackType === "audio" ? "audio" : "image";
+      const list = trackType === "audio" ? this.timeline.audioSegments : this.timeline.segments;
+      this.selectedIndex = list.findIndex(s => s.id === seg.id);
+      this.rippleDeleteSelectedSegment();
+      this.dismissContextMenu();
+    };
+    menu.appendChild(rippleDeleteBtn);
+
     const delBtn = document.createElement("button");
-    delBtn.className = "pr-gap-menu-btn";
+    delBtn.className = "pr-gap-menu-btn pr-gap-menu-btn-danger";
     delBtn.innerHTML = `Delete`;
-    delBtn.style.color = "#ff4444";
     delBtn.onclick = () => {
       this.selectionType = trackType === "audio" ? "audio" : "image";
       const list = trackType === "audio" ? this.timeline.audioSegments : this.timeline.segments;
