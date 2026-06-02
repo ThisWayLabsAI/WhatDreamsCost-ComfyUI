@@ -195,7 +195,7 @@ const STYLES = `
     resize: both;
     overflow: auto;
     background: #1a1a1a;
-    border: 1px solid #606060;
+    border: 2px solid #7a7a7a;
     border-radius: 8px;
     padding: 10px;
     display: flex;
@@ -324,7 +324,7 @@ const STYLES = `
     resize: both;
     overflow: auto;
     background: #1a1a1a;
-    border: 1px solid #666;
+    border: 2px solid #828282;
     border-radius: 8px;
     padding: 12px;
     display: flex;
@@ -1392,7 +1392,9 @@ class TimelineEditor {
 
     this.segmentBoundsDisplay = document.createElement("div");
     this.segmentBoundsDisplay.className = "pr-segment-bounds";
-    this.segmentBoundsDisplay.textContent = "Start: - | End: -";
+    const initialTotalSeconds = this.getDurationFrames() / this.getFrameRate();
+    const initialTotalMinutes = initialTotalSeconds / 60;
+    this.segmentBoundsDisplay.textContent = `Start: - | End: - | Total: ${initialTotalSeconds.toFixed(2)}s (${initialTotalMinutes.toFixed(2)}min)`;
 
     this.timeCodeDisplay = document.createElement("div");
     this.timeCodeDisplay.className = "pr-timecode";
@@ -3203,12 +3205,15 @@ class TimelineEditor {
     this.syncClipLengthInputFromSelection(seg);
 
     if (this.segmentBoundsDisplay) {
+      const totalSeconds = this.getDurationFrames() / this.getFrameRate();
+      const totalMinutes = totalSeconds / 60;
+      const totalLabel = `Total: ${totalSeconds.toFixed(2)}s (${totalMinutes.toFixed(2)}min)`;
       if (seg) {
         const startStr = this.formatTime(seg.start, true);
         const endStr = this.formatTime(seg.start + seg.length, true);
-        this.segmentBoundsDisplay.textContent = `Start: ${startStr} | End: ${endStr}`;
+        this.segmentBoundsDisplay.textContent = `Start: ${startStr} | End: ${endStr} | ${totalLabel}`;
       } else {
-        this.segmentBoundsDisplay.textContent = "Start: - | End: -";
+        this.segmentBoundsDisplay.textContent = `Start: - | End: - | ${totalLabel}`;
       }
     }
   }
