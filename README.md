@@ -46,6 +46,7 @@ This fork includes additional LTX Director UI/UX polish on top of the upstream r
 - Added Trim to Last Clip and Ripple Delete Gaps timeline actions for faster cleanup.
 - Added clip conversion actions so you can switch between Image+Prompt and Prompt-Only clips without wiping an existing prompt when removing the image.
 - Added a prompt modal with direct clip number navigation, clip image drag/drop-replace-remove controls, and quick prompt copy/clear actions. Double-clicking the Global Prompt or Prompt input fields open the prompt modal.
+- Added shot script import/export. Example format: `GLOBAL: cinematic sunset skyline` then `SHOT 1 | 3s` with the shot prompt below.
 - Added styled clip index badges to the timeline presentation
 
 **v1.3.9**
