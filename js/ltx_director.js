@@ -10,6 +10,9 @@ const CANVAS_HEIGHT = RULER_HEIGHT + BLOCK_HEIGHT + AUDIO_TRACK_HEIGHT;
 const HANDLE_HIT_PX = 14;
 const MIN_SEGMENT_LENGTH = 6;
 const MAX_THUMBNAIL_DIM = 512; // Increased to maintain quality for taller images
+const CLIP_INDEX_LABEL_HEIGHT = 16;
+const CLIP_INDEX_LABEL_BOTTOM_MARGIN = 3;
+const CLIP_INDEX_PROMPT_GAP = 6;
 
 const HIDDEN_WIDGET_NAMES = ["timeline_data", "local_prompts", "segment_lengths", "guide_strength", "audio_data", "use_custom_audio", "use_global_prompt", "global_prompt"];
 
@@ -288,6 +291,10 @@ const STYLES = `
     border: 1px dashed #3a3a3a;
     border-radius: 6px;
     background: #111;
+    text-align: center;
+    line-height: 1.5;
+    padding: 12px;
+    box-sizing: border-box;
   }
   .pr-prompt-modal-image-actions {
     display: flex;
@@ -2289,14 +2296,6 @@ class TimelineEditor {
       clipNav.appendChild(clipTotal);
       title.appendChild(clipNav);
 
-      const prevBtn = document.createElement("button");
-      prevBtn.className = "pr-mini-btn";
-      prevBtn.title = "Previous clip";
-      prevBtn.textContent = "← Prev";
-      const nextBtn = document.createElement("button");
-      nextBtn.className = "pr-mini-btn";
-      nextBtn.title = "Next clip";
-      nextBtn.textContent = "Next →";
       const navigateToClip = (targetSeg) => {
         const idx = this.timeline.segments.findIndex(s => s.id === targetSeg.id);
         if (idx === -1 || targetSeg.id === seg.id) return;
@@ -2313,18 +2312,6 @@ class TimelineEditor {
         if (!targetSeg) return;
         navigateToClip(targetSeg);
       };
-      const updateNavButtons = () => {
-        const ordered = getOrderedSegments();
-        const currentSortedIdx = ordered.findIndex(s => s.id === seg.id);
-        prevBtn.disabled = currentSortedIdx <= 0;
-        nextBtn.disabled = currentSortedIdx >= ordered.length - 1;
-        prevBtn.onclick = () => {
-          if (currentSortedIdx > 0) navigateToClip(ordered[currentSortedIdx - 1]);
-        };
-        nextBtn.onclick = () => {
-          if (currentSortedIdx < ordered.length - 1) navigateToClip(ordered[currentSortedIdx + 1]);
-        };
-      };
       const applyClipNavigationInput = () => {
         const requestedIndex = parseInt(clipIndexInput.value, 10);
         if (!Number.isFinite(requestedIndex)) {
@@ -2338,9 +2325,6 @@ class TimelineEditor {
         if (e.key === "Enter") applyClipNavigationInput();
       });
       clipIndexInput.addEventListener("blur", () => refreshSegmentMeta());
-      updateNavButtons();
-      headerRight.appendChild(prevBtn);
-      headerRight.appendChild(nextBtn);
 
       modalClipIndexInput = clipIndexInput;
       modalClipTotal = clipTotal;
@@ -2435,7 +2419,7 @@ class TimelineEditor {
       imagePreviewEl.alt = "Clip keyframe";
       imageEmptyEl = document.createElement("div");
       imageEmptyEl.className = "pr-prompt-modal-image-empty";
-      imageEmptyEl.textContent = "No keyframe image";
+      imageEmptyEl.textContent = "No keyframe image. Drag/Drop an Image, or click the add Image button";
       const imageActionRow = document.createElement("div");
       imageActionRow.className = "pr-prompt-modal-image-actions";
       imagePrimaryBtn = document.createElement("button");
@@ -2762,6 +2746,10 @@ class TimelineEditor {
       const startX = (seg.start / totalFrames) * width;
       const pxWidth = (seg.length / totalFrames) * width;
       const isSelected = (this.selectionType === "image" && seg.id === activeSegId);
+      const clipIndex = segmentIndexMap.get(seg.id);
+      const showClipIndex = clipIndex !== undefined && seg.type !== "ghost" && pxWidth > 20;
+      const promptBottomLimit = RULER_HEIGHT + this.blockHeight
+        - (showClipIndex ? (CLIP_INDEX_LABEL_HEIGHT + CLIP_INDEX_LABEL_BOTTOM_MARGIN + CLIP_INDEX_PROMPT_GAP) : 0);
 
       const originalSeg = this.timeline.segments.find(s => s.id === seg.id);
       const imgObj = originalSeg ? originalSeg.imgObj : seg.imgObj;
@@ -2834,9 +2822,10 @@ class TimelineEditor {
         this.ctx.restore();
 
         // --- Prompt subtitle overlay ---
-        if (seg.prompt && seg.type !== "ghost" && pxWidth > 24) {
-          const overlayH = Math.round(this.blockHeight * 0.20);
-          const overlayY = RULER_HEIGHT + this.blockHeight - overlayH;
+        const maxOverlayH = Math.max(0, promptBottomLimit - (RULER_HEIGHT + 1));
+        if (seg.prompt && seg.type !== "ghost" && pxWidth > 24 && maxOverlayH > 10) {
+          const overlayH = Math.min(Math.round(this.blockHeight * 0.20), maxOverlayH);
+          const overlayY = promptBottomLimit - overlayH;
 
           this.ctx.save();
           this.ctx.beginPath();
@@ -2870,10 +2859,11 @@ class TimelineEditor {
       } else if (seg.type === "text") {
         const pad = 8;
         const boxW = pxWidth - pad * 2;
-        if (boxW > 12) {
+        const textBoxHeight = promptBottomLimit - (RULER_HEIGHT + pad) - pad;
+        if (boxW > 12 && textBoxHeight > 0) {
           this.ctx.save();
           this.ctx.beginPath();
-          this.ctx.rect(startX + pad, RULER_HEIGHT + pad, boxW, this.blockHeight - pad * 2);
+          this.ctx.rect(startX + pad, RULER_HEIGHT + pad, boxW, textBoxHeight);
           this.ctx.clip();
           this.ctx.fillStyle = "#e0e3ed";
           this.ctx.font = "11px sans-serif";
@@ -2895,14 +2885,14 @@ class TimelineEditor {
           }
           if (line) lines.push(line);
 
-          const maxLines = Math.max(1, Math.floor((this.blockHeight - pad * 2) / lineH));
+          const maxLines = Math.max(1, Math.floor(textBoxHeight / lineH));
           if (lines.length > maxLines) {
             lines = lines.slice(0, maxLines);
             lines[lines.length - 1] += "…";
           }
 
           const totalTextHeight = lines.length * lineH;
-          let ty = RULER_HEIGHT + (this.blockHeight - totalTextHeight) / 2 + 2;
+          let ty = RULER_HEIGHT + pad + Math.max(0, (textBoxHeight - totalTextHeight) / 2) + 2;
 
           for (const l of lines) {
             this.ctx.fillText(l, startX + pxWidth / 2, ty);
@@ -2929,15 +2919,14 @@ class TimelineEditor {
         this.ctx.strokeRect(startX, RULER_HEIGHT + 1, pxWidth, this.blockHeight - 2);
       }
 
-      const clipIndex = segmentIndexMap.get(seg.id);
-      if (clipIndex !== undefined && seg.type !== "ghost" && pxWidth > 20) {
+      if (showClipIndex) {
         this.ctx.save();
         const labelText = `#${clipIndex}`;
         this.ctx.font = "600 10px sans-serif";
         const labelW = Math.min(pxWidth - 6, Math.max(38, this.ctx.measureText(labelText).width + 16));
-        const labelH = 16;
+        const labelH = CLIP_INDEX_LABEL_HEIGHT;
         const labelX = startX + (pxWidth - labelW) / 2;
-        const labelY = RULER_HEIGHT + this.blockHeight - labelH - 3;
+        const labelY = RULER_HEIGHT + this.blockHeight - labelH - CLIP_INDEX_LABEL_BOTTOM_MARGIN;
         this.ctx.fillStyle = isSelected ? "rgba(30, 78, 124, 0.95)" : "rgba(11, 23, 36, 0.9)";
         this.ctx.strokeStyle = isSelected ? "rgba(191, 227, 255, 0.95)" : "rgba(121, 179, 231, 0.65)";
         this.ctx.lineWidth = 1;
@@ -3096,7 +3085,7 @@ class TimelineEditor {
         this.ctx.font = "14px sans-serif";
         this.ctx.textAlign = "center";
         this.ctx.textBaseline = "middle";
-        this.ctx.fillText("+", gap.centerX, gap.centerY + 1);
+        this.ctx.fillText("+", gap.centerX, gap.centerY + (gap.track === "audio" ? -1 : 1));
       }
     }
 

@@ -37,6 +37,15 @@ If you don't see the latest version (v1.3.9) yet in the manager then just downlo
 Also you will need to update ComfyUI-LTXVideo and ComfyUI-KJNodes to the latest version as well. You cannot use this node without updating ComfyUI-LTXVideo!
 
 # 🔄 Recent Updates
+### Fork UI/UX Enhancements
+
+This fork includes additional LTX Director UI/UX polish on top of the upstream releases:
+
+- Added styled clip index badges in the timeline with improved spacing from prompt text.
+- Added direct manual clip number entry in the prompt modal and removed the extra prev/next modal navigation buttons.
+- Improved the prompt modal keyframe image area with clearer empty-state copy plus drag/drop and replace/remove image actions.
+- Refined timeline controls, including better audio lane add-button centering and related layout polish.
+
 **v1.3.9**
   * **Fixed recent updates not showing in the manager**
 
