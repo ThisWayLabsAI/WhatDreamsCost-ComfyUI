@@ -2978,11 +2978,11 @@ class TimelineEditor {
 
     const modeImportBtn = document.createElement("button");
     modeImportBtn.className = "pr-mini-btn";
-    modeImportBtn.textContent = "Import";
+    modeImportBtn.textContent = "Import Mode";
 
     const modeExportBtn = document.createElement("button");
     modeExportBtn.className = "pr-mini-btn";
-    modeExportBtn.textContent = "View/Export";
+    modeExportBtn.textContent = "Export Mode";
 
     const fileInput = document.createElement("input");
     fileInput.type = "file";
@@ -2996,11 +2996,11 @@ class TimelineEditor {
 
     const importBtn = document.createElement("button");
     importBtn.className = "pr-mini-btn";
-    importBtn.textContent = "Import";
+    importBtn.textContent = "Apply to Timeline";
 
     const exportBtn = document.createElement("button");
     exportBtn.className = "pr-mini-btn";
-    exportBtn.textContent = "Export";
+    exportBtn.textContent = "Save .txt";
 
     const copyBtn = document.createElement("button");
     copyBtn.className = "pr-mini-btn";
@@ -3046,7 +3046,7 @@ class TimelineEditor {
     const setMode = (nextMode) => {
       mode = nextMode === "export" ? "export" : "import";
       const isImport = mode === "import";
-      title.textContent = isImport ? "Import Clip Script" : "View/Export Clip Script";
+      title.textContent = isImport ? "Import Clip Script" : "Export Clip Script";
       hint.textContent = isImport ? importHint : exportHint;
       textarea.readOnly = !isImport;
       textarea.placeholder = isImport ? "GLOBAL: Describe global prompt here.\n\nVIDEO:\nwidth: 1280\nheight: 720\ntotal_duration: 40\n\nCLIP 1 | 3s\nDescribe clip 1 here.\n\nCLIP 2 | 2.5s\nDescribe clip 2 here." : "";
