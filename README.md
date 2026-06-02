@@ -46,8 +46,7 @@ This fork includes additional LTX Director UI/UX polish on top of the upstream r
 - Added Trim to Last Clip and Ripple Delete Gaps timeline actions for faster cleanup.
 - Added clip conversion actions so you can switch between Image+Prompt and Prompt-Only clips without wiping an existing prompt when removing the image.
 - Added a prompt modal with direct clip number navigation, clip image drag/drop-replace-remove controls, and quick prompt copy/clear actions.
-- Added easier image replacement when dropping a new image onto an existing clip.
-- Refined the timeline presentation with styled clip index badges, improved prompt spacing, and better-centered audio gap controls.
+- Added styled clip index badges to the timeline presentation
 
 **v1.3.9**
   * **Fixed recent updates not showing in the manager**
