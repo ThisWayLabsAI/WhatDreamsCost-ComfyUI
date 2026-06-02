@@ -393,6 +393,10 @@ class LTXDirector(io.ComfyNode):
                     "global_prompt", multiline=True, default="",
                     tooltip="Conditions the entire video. Anchors persistent characters, objects, and scene context.",
                 ),
+                io.Boolean.Input(
+                    "use_global_prompt", default=True, optional=True,
+                    tooltip="When disabled, global_prompt text is preserved but excluded from generation.",
+                ),
                 io.Int.Input(
                     "duration_frames", default=120, min=1, max=10000, step=1,
                     tooltip="Total timeline length in pixel-space frames. Used by the editor for visual scale only.",
@@ -474,7 +478,7 @@ class LTXDirector(io.ComfyNode):
                 frame_rate=24, display_mode="seconds",
                 custom_width=768, custom_height=512, resize_method="maintain aspect ratio",
                 divisible_by=32, img_compression=0, audio_vae=None, optional_latent=None,
-                use_custom_audio=False) -> io.NodeOutput:
+                use_custom_audio=False, use_global_prompt=True) -> io.NodeOutput:
 
         # --- Build guide_data from image segments FIRST (to derive output dimensions) ---
         guide_data = {"images": [], "insert_frames": [], "strengths": [], "frame_rate": frame_rate}
@@ -571,8 +575,9 @@ class LTXDirector(io.ComfyNode):
         else:
             latent = optional_latent
 
+        effective_global_prompt = global_prompt if use_global_prompt else ""
         patched, conditioning = _encode_relay(
-            model, clip, latent, global_prompt, local_prompts, segment_lengths, epsilon,
+            model, clip, latent, effective_global_prompt, local_prompts, segment_lengths, epsilon,
         )
 
         # --- Build Audio Output ---

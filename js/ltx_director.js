@@ -3,14 +3,18 @@ const { api } = window.comfyAPI.api;
 
 // --- UI Constants & Configuration ---
 const RULER_HEIGHT = 24;
-const BLOCK_HEIGHT = 160; // Increased to make the image timeline area much taller
-const AUDIO_TRACK_HEIGHT = 80;
+const BLOCK_HEIGHT = 120;
+const AUDIO_TRACK_HEIGHT = 96;
+const AUDIO_TRACK_INSET_Y = 2;
 const CANVAS_HEIGHT = RULER_HEIGHT + BLOCK_HEIGHT + AUDIO_TRACK_HEIGHT;
 const HANDLE_HIT_PX = 14;
 const MIN_SEGMENT_LENGTH = 6;
 const MAX_THUMBNAIL_DIM = 512; // Increased to maintain quality for taller images
+const CLIP_INDEX_LABEL_HEIGHT = 16;
+const CLIP_INDEX_LABEL_BOTTOM_MARGIN = 3;
+const CLIP_INDEX_PROMPT_GAP = 6;
 
-const HIDDEN_WIDGET_NAMES = ["timeline_data", "local_prompts", "segment_lengths", "guide_strength", "audio_data", "use_custom_audio"];
+const HIDDEN_WIDGET_NAMES = ["timeline_data", "local_prompts", "segment_lengths", "guide_strength", "audio_data", "use_custom_audio", "use_global_prompt", "global_prompt"];
 
 function hideWidget(w) {
   if (!w) return;
@@ -98,6 +102,7 @@ const STYLES = `
   .pr-prompt-area {
     width: 100%;
     height: 100%;
+    min-height: 96px;
     background: #222;
     color: #e0e0e0;
     border: 1px solid #111;
@@ -127,6 +132,175 @@ const STYLES = `
     display: none;
   }
   .pr-audio-info span { color: #fff; font-weight: 500; }
+  .pr-prompt-tools {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+    flex-wrap: wrap;
+  }
+  .pr-mini-btn {
+    background: #1f1f1f;
+    color: #d8d8d8;
+    border: 1px solid #111;
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 11px;
+    cursor: pointer;
+  }
+  .pr-mini-btn:hover { background: #2e2e2e; border-color: #555; }
+  .pr-clip-length-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+    font-size: 11px;
+    color: #c8c8c8;
+  }
+  .pr-clip-length-input {
+    width: 100px;
+    background: #222;
+    color: #e0e0e0;
+    border: 1px solid #111;
+    border-radius: 4px;
+    padding: 4px 6px;
+    font-size: 11px;
+    box-sizing: border-box;
+  }
+  .pr-prompt-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 99999;
+  }
+  .pr-prompt-modal {
+    width: min(80vw, 900px);
+    height: min(70vh, 620px);
+    min-width: 420px;
+    min-height: 260px;
+    resize: both;
+    overflow: auto;
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    box-sizing: border-box;
+  }
+  .pr-prompt-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+    color: #efefef;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .pr-prompt-modal-title-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    flex-wrap: wrap;
+  }
+  .pr-prompt-modal-clip-nav {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    border: 1px solid #2f2f2f;
+    border-radius: 6px;
+    background: #161616;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+  .pr-prompt-modal-clip-input {
+    width: 64px;
+    background: #222;
+    color: #f2f2f2;
+    border: 1px solid #454545;
+    border-radius: 4px;
+    padding: 4px 6px;
+    font-size: 11px;
+    font-weight: 600;
+    text-align: center;
+    box-sizing: border-box;
+  }
+  .pr-prompt-modal-header-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .pr-prompt-modal textarea {
+    flex: 1;
+    width: 100%;
+    min-height: 120px;
+    background: #222;
+    color: #e0e0e0;
+    border: 1px solid #111;
+    border-radius: 6px;
+    padding: 8px;
+    font-size: 12px;
+    line-height: 1.4;
+    box-sizing: border-box;
+    resize: none;
+  }
+  .pr-prompt-modal-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #d0d0d0;
+    font-size: 11px;
+    flex-wrap: wrap;
+  }
+  .pr-prompt-modal-image {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    border: 1px solid #2d2d2d;
+    border-radius: 6px;
+    padding: 8px;
+    background: #171717;
+  }
+  .pr-prompt-modal-image.drag-active {
+    border-color: #6a6a6a;
+    background: #1f1f1f;
+  }
+  .pr-prompt-modal-image-preview {
+    width: 100%;
+    min-height: 120px;
+    max-height: 240px;
+    object-fit: contain;
+    border-radius: 6px;
+    background: #101010;
+    border: 1px solid #2b2b2b;
+  }
+  .pr-prompt-modal-image-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #8a8a8a;
+    font-size: 11px;
+    height: 120px;
+    border: 1px dashed #3a3a3a;
+    border-radius: 6px;
+    background: #111;
+    text-align: center;
+    line-height: 1.5;
+    padding: 12px;
+    box-sizing: border-box;
+  }
+  .pr-prompt-modal-image-actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
   .pr-controls-group {
     background: #1e1e1e;
     border: 1px solid #333;
@@ -302,6 +476,8 @@ const STYLES = `
     width: 100%;
     overflow-x: auto;
     overflow-y: hidden;
+    padding-bottom: 10px;
+    box-sizing: content-box;
   }
   .pr-timeline-viewport::-webkit-scrollbar {
     height: 10px;
@@ -348,6 +524,83 @@ const STYLES = `
     display: flex;
     align-items: center;
     gap: 12px;
+  }
+  .pr-global-prompt-container {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 100%;
+    background: #1e1e1e;
+    border: 1px solid #333;
+    border-radius: 6px;
+    padding: 8px;
+    box-sizing: border-box;
+  }
+  .pr-global-prompt-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .pr-global-prompt-label {
+    font-size: 11px;
+    color: #cfcfcf;
+    font-weight: 600;
+  }
+  .pr-global-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: #cfcfcf;
+  }
+  .pr-global-toggle input {
+    margin: 0;
+    cursor: pointer;
+  }
+  .pr-global-prompt-input {
+    width: 100%;
+    min-height: 72px;
+    max-height: 220px;
+    background: #222;
+    color: #e0e0e0;
+    border: 1px solid #111;
+    border-radius: 6px;
+    padding: 8px;
+    resize: none;
+    font-size: 12px;
+    line-height: 1.4;
+    box-sizing: border-box;
+    overflow-y: auto;
+  }
+  .pr-input-tools {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+  }
+  .pr-input-icon-btn {
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    background: #2a2a2a;
+    border: 1px solid #444;
+    color: #eee;
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .pr-input-icon-btn * {
+    pointer-events: none;
+  }
+  .pr-input-icon-btn:hover {
+    color: #fff;
+    background: #3a3a3a;
+    border-color: #666;
   }
   .pr-segment-bounds {
     font-size: 12px;
@@ -538,6 +791,8 @@ const ICONS = {
   plus: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>`,
   fit: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><polyline points="8 7 3 12 8 17"></polyline><polyline points="16 7 21 12 16 17"></polyline></svg>`,
   gear: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>`,
+  copy: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`,
+  clear: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`,
   close: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`
 };
 
@@ -633,12 +888,15 @@ class TimelineEditor {
     this.localPromptsWidget = this.node.widgets.find(w => w.name === "local_prompts");
     this.segmentLengthsWidget = this.node.widgets.find(w => w.name === "segment_lengths");
     this.guideStrengthWidget = this.node.widgets.find(w => w.name === "guide_strength");
+    this.globalPromptWidget = this.node.widgets.find(w => w.name === "global_prompt");
+    this.useGlobalPromptWidget = this.node.widgets.find(w => w.name === "use_global_prompt");
     this.displayModeWidget = this.node.widgets.find(w => w.name === "display_mode");
 
     this.timeline = parseInitial(this.timelineDataWidget?.value);
     this.loadImages();
 
     this.createDOM();
+    this.syncGlobalPromptInputFromWidget();
     if (this.timeline.segments.length > 0) {
       this.selectedIndex = 0;
     }
@@ -710,6 +968,7 @@ class TimelineEditor {
   destroy() {
     cancelAnimationFrame(this._renderLoop);
     this.pauseAudio();
+    this.closePromptEditorModal();
     window.removeEventListener("keydown", this.handleKeyDown, true);
     window.removeEventListener("paste", this.handlePaste, true);
   }
@@ -720,6 +979,64 @@ class TimelineEditor {
 
   getFrameRate() {
     return parseInt((this.frameRateWidget && this.frameRateWidget.value > 0) ? this.frameRateWidget.value : 24, 10);
+  }
+
+  syncGlobalPromptInputFromWidget() {
+    if (!this.globalPromptInput) return;
+    this.globalPromptInput.value = this.globalPromptWidget?.value || "";
+    this.autoSizeTextarea(this.globalPromptInput, 220);
+  }
+
+  async copyTextToClipboard(text) {
+    try {
+      await navigator.clipboard.writeText(text || "");
+      return true;
+    } catch (err) {
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = text || "";
+        ta.style.cssText = "position:fixed;top:0;left:0;opacity:0;pointer-events:none;";
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        const ok = document.execCommand("copy");
+        document.body.removeChild(ta);
+        if (ok) return true;
+      } catch (e2) { /* fall through */ }
+      console.error("[PromptRelay] Failed to copy text", err);
+      return false;
+    }
+  }
+
+  autoSizeTextarea(textarea, maxHeight = 220) {
+    if (!textarea) return;
+    const prevHeight = textarea.offsetHeight;
+    textarea.style.height = "auto";
+    textarea.style.height = `${Math.min(textarea.scrollHeight, maxHeight)}px`;
+    if (Math.abs(textarea.offsetHeight - prevHeight) > 0.5) {
+      this.requestNodeResize();
+    }
+  }
+
+  requestNodeResize() {
+    if (this.node && this.node.computeSize) {
+      const sz = this.node.computeSize();
+      this.node.size[1] = sz[1];
+      if (window.app && window.app.graph) {
+        window.app.graph.setDirtyCanvas(true, true);
+      }
+    }
+  }
+
+  getSelectedSegment() {
+    if (this.selectionType === "audio") {
+      return this.timeline.audioSegments[this.selectedIndex] || null;
+    }
+    return this.timeline.segments[this.selectedIndex] || null;
+  }
+
+  getSelectedTrackArray() {
+    return this.selectionType === "audio" ? this.timeline.audioSegments : this.timeline.segments;
   }
 
   // Grow the timeline duration to fit `requiredFrames` if it is currently shorter.
@@ -883,12 +1200,23 @@ class TimelineEditor {
     deleteBtn.innerHTML = `${ICONS.trash} Delete`;
     deleteBtn.addEventListener("click", () => this.deleteSelectedSegment());
 
+    const trimToLastBtn = document.createElement("button");
+    trimToLastBtn.className = "pr-btn";
+    trimToLastBtn.textContent = "Trim to Last Clip";
+    trimToLastBtn.addEventListener("click", () => this.trimDurationToLastClip());
+    const rippleDeleteBtn = document.createElement("button");
+    rippleDeleteBtn.className = "pr-btn";
+    rippleDeleteBtn.textContent = "Ripple Delete Gaps";
+    rippleDeleteBtn.addEventListener("click", () => this.rippleDeleteTrackGaps());
+
     actionGroup.appendChild(this.fileInput);
     actionGroup.appendChild(this.audioFileInput);
     actionGroup.appendChild(uploadBtn);
     actionGroup.appendChild(addTextBtn);
     actionGroup.appendChild(uploadAudioBtn);
     actionGroup.appendChild(deleteBtn);
+    actionGroup.appendChild(rippleDeleteBtn);
+    actionGroup.appendChild(trimToLastBtn);
     toolbar.appendChild(actionGroup);
 
     const rightGroup = document.createElement("div");
@@ -919,7 +1247,6 @@ class TimelineEditor {
         this.showSettingsMenu(settingsBtn);
       }
     });
-
     const toggleBtn = document.createElement("button");
     toggleBtn.className = "pr-btn";
     toggleBtn.style.padding = "6px 8px";
@@ -984,6 +1311,69 @@ class TimelineEditor {
 
     toolbar.appendChild(rightGroup);
 
+    const globalPromptContainer = document.createElement("div");
+    globalPromptContainer.className = "pr-global-prompt-container";
+
+    const globalPromptHead = document.createElement("div");
+    globalPromptHead.className = "pr-global-prompt-head";
+
+    const globalPromptLabel = document.createElement("span");
+    globalPromptLabel.className = "pr-global-prompt-label";
+    globalPromptLabel.textContent = "Global Prompt";
+    globalPromptHead.appendChild(globalPromptLabel);
+
+    const globalToggleLabel = document.createElement("label");
+    globalToggleLabel.className = "pr-global-toggle";
+    this.useGlobalPromptCheckbox = document.createElement("input");
+    this.useGlobalPromptCheckbox.type = "checkbox";
+    this.useGlobalPromptCheckbox.checked = !!this.useGlobalPromptWidget?.value;
+    this.useGlobalPromptCheckbox.addEventListener("change", () => {
+      if (!this.useGlobalPromptWidget) return;
+      this.useGlobalPromptWidget.value = this.useGlobalPromptCheckbox.checked;
+      if (this.useGlobalPromptWidget.callback) this.useGlobalPromptWidget.callback(this.useGlobalPromptCheckbox.checked);
+      if (window.app && window.app.graph) window.app.graph.setDirtyCanvas(true, true);
+    });
+    const globalToggleText = document.createElement("span");
+    globalToggleText.textContent = "Apply to all clips";
+    globalToggleLabel.appendChild(this.useGlobalPromptCheckbox);
+    globalToggleLabel.appendChild(globalToggleText);
+    globalPromptHead.appendChild(globalToggleLabel);
+
+    this.globalPromptInput = document.createElement("textarea");
+    this.globalPromptInput.className = "pr-global-prompt-input";
+    this.globalPromptInput.placeholder = "Enter global prompt...";
+    this.globalPromptInput.addEventListener("input", () => {
+      if (this.globalPromptWidget) {
+        this.globalPromptWidget.value = this.globalPromptInput.value;
+        if (this.globalPromptWidget.callback) this.globalPromptWidget.callback(this.globalPromptInput.value);
+      }
+      this.autoSizeTextarea(this.globalPromptInput, 220);
+    });
+    this.globalPromptInput.addEventListener("dblclick", () => this.openPromptEditorModal("global"));
+    const globalPromptTools = document.createElement("div");
+    globalPromptTools.className = "pr-input-tools";
+    const globalCopyBtn = document.createElement("button");
+    globalCopyBtn.className = "pr-input-icon-btn";
+    globalCopyBtn.innerHTML = ICONS.copy;
+    globalCopyBtn.title = "Copy global prompt";
+    globalCopyBtn.addEventListener("click", () => this.copyTextToClipboard(this.globalPromptInput.value));
+    const globalClearBtn = document.createElement("button");
+    globalClearBtn.className = "pr-input-icon-btn";
+    globalClearBtn.innerHTML = ICONS.clear;
+    globalClearBtn.title = "Clear global prompt";
+    globalClearBtn.addEventListener("click", () => {
+      this.globalPromptInput.value = "";
+      this.globalPromptInput.dispatchEvent(new Event("input"));
+      this.globalPromptInput.focus();
+    });
+    globalPromptTools.appendChild(globalCopyBtn);
+    globalPromptTools.appendChild(globalClearBtn);
+
+    globalPromptContainer.appendChild(globalPromptHead);
+    globalPromptContainer.appendChild(globalPromptTools);
+    globalPromptContainer.appendChild(this.globalPromptInput);
+    this.syncGlobalPromptInputFromWidget();
+
     // --- Canvas & Viewport ---
     this.viewport = document.createElement("div");
     this.viewport.className = "pr-timeline-viewport";
@@ -1015,6 +1405,7 @@ class TimelineEditor {
     this.viewport.appendChild(this.canvas);
 
     this.canvas.addEventListener("mousedown", (e) => this.onMouseDown(e));
+    this.canvas.addEventListener("dblclick", (e) => this.onCanvasDoubleClick(e));
     this.canvas.addEventListener("contextmenu", (e) => this.onContextMenu(e));
     this.canvas.style.height = `${CANVAS_HEIGHT}px`;
 
@@ -1022,9 +1413,30 @@ class TimelineEditor {
     const propContainer = document.createElement("div");
     propContainer.className = "pr-prop-container";
 
+    this.clipLengthRow = document.createElement("div");
+    this.clipLengthRow.className = "pr-clip-length-row";
+    this.clipLengthLabel = document.createElement("span");
+    this.clipLengthLabel.textContent = "Clip Length:";
+    this.clipLengthInput = document.createElement("input");
+    this.clipLengthInput.type = "number";
+    this.clipLengthInput.min = "0";
+    this.clipLengthInput.step = "0.01";
+    this.clipLengthInput.className = "pr-clip-length-input";
+    this.clipLengthUnit = document.createElement("span");
+    this.clipLengthUnit.textContent = "s";
+    this.clipLengthRow.appendChild(this.clipLengthLabel);
+    this.clipLengthRow.appendChild(this.clipLengthInput);
+    this.clipLengthRow.appendChild(this.clipLengthUnit);
+    this.clipLengthInput.addEventListener("change", () => this.applyManualSelectedClipLength());
+    this.clipLengthInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") this.applyManualSelectedClipLength();
+    });
+    this.clipLengthInput.addEventListener("blur", () => this.syncClipLengthInputFromSelection());
+
     // --- Text Area (Image/Text) ---
     this.promptInput = document.createElement("textarea");
     this.promptInput.className = "pr-prompt-area";
+    this.promptInput.rows = 6;
     this.promptInput.placeholder = "Enter prompt for selected segment...";
     this.promptInput.addEventListener("input", () => {
       if (this.selectionType === "image" && this.timeline.segments[this.selectedIndex]) {
@@ -1032,11 +1444,32 @@ class TimelineEditor {
         this.commitChanges();
       }
     });
+    this.promptInput.addEventListener("dblclick", () => this.openPromptEditorModal("segment"));
+    this.segmentPromptTools = document.createElement("div");
+    this.segmentPromptTools.className = "pr-input-tools";
+    this.segmentCopyBtn = document.createElement("button");
+    this.segmentCopyBtn.className = "pr-input-icon-btn";
+    this.segmentCopyBtn.innerHTML = ICONS.copy;
+    this.segmentCopyBtn.title = "Copy clip prompt";
+    this.segmentCopyBtn.addEventListener("click", () => this.copyTextToClipboard(this.promptInput.value));
+    this.segmentClearBtn = document.createElement("button");
+    this.segmentClearBtn.className = "pr-input-icon-btn";
+    this.segmentClearBtn.innerHTML = ICONS.clear;
+    this.segmentClearBtn.title = "Clear clip prompt";
+    this.segmentClearBtn.addEventListener("click", () => {
+      this.promptInput.value = "";
+      this.promptInput.dispatchEvent(new Event("input"));
+      this.promptInput.focus();
+    });
+    this.segmentPromptTools.appendChild(this.segmentCopyBtn);
+    this.segmentPromptTools.appendChild(this.segmentClearBtn);
 
     // --- Audio Info Area ---
     this.audioInfoArea = document.createElement("div");
     this.audioInfoArea.className = "pr-audio-info";
 
+    propContainer.appendChild(this.clipLengthRow);
+    propContainer.appendChild(this.segmentPromptTools);
     propContainer.appendChild(this.promptInput);
     propContainer.appendChild(this.audioInfoArea);
 
@@ -1108,6 +1541,7 @@ class TimelineEditor {
 
       let targetFrameStart = null;
       let targetTrack = this._ghostTrack || "image";
+      let dropCursorFrame = null;
 
       if (this._ghostSegmentId && this._previewSegments) {
         const ghost = this._previewSegments.find(s => s.id === this._ghostSegmentId);
@@ -1115,6 +1549,10 @@ class TimelineEditor {
           targetFrameStart = ghost.resolvedStart !== undefined ? ghost.resolvedStart : ghost.start;
         }
       }
+      const mousePos = this.getMousePos(e);
+      const logicalWidth = this.canvas.offsetWidth || 1;
+      const totalFrames = this.getVisualDurationFrames();
+      dropCursorFrame = mousePos.x * (totalFrames / logicalWidth);
       this._ghostSegmentId = null;
       this._ghostTrack = null;
       this._ghostInitialTimeline = null;
@@ -1134,6 +1572,11 @@ class TimelineEditor {
         if (audioFiles.length > 0 && (targetTrack === "audio" || imageFiles.length === 0)) {
           this.handleAudioUpload(audioFiles, targetFrameStart);
         } else if (imageFiles.length > 0) {
+          const targetSeg = targetTrack === "image" ? this.getSegmentAtFrame("image", dropCursorFrame) : null;
+          if (targetSeg && imageFiles.length === 1) {
+            this.replaceSegmentImage(targetSeg, imageFiles[0]);
+            return;
+          }
           this.handleImageUpload(imageFiles, targetFrameStart);
         }
       }
@@ -1345,6 +1788,7 @@ class TimelineEditor {
 
 
     this.wrapper.appendChild(toolbar);
+    this.wrapper.appendChild(globalPromptContainer);
     this.wrapper.appendChild(this.viewport);
 
     const controlsGroup = document.createElement("div");
@@ -1508,6 +1952,87 @@ class TimelineEditor {
     this.fileInput.value = "";
   }
 
+  async uploadImageAsset(file) {
+    const body = new FormData();
+    body.append("image", file);
+    const resp = await api.fetchApi("/upload/image", { method: "POST", body });
+    if (resp.status !== 200) return null;
+    const data = await resp.json();
+    const filename = data.name;
+    const subfolder = data.subfolder || "";
+    const imageFile = subfolder ? `${subfolder}/${filename}` : filename;
+    const imageB64 = api.apiURL(`/view?filename=${encodeURIComponent(filename)}&type=input&subfolder=${encodeURIComponent(subfolder)}`);
+    return { imageFile, imageB64 };
+  }
+
+  getSegmentAtFrame(track, frame) {
+    if (!Number.isFinite(frame)) return null;
+    const list = track === "audio" ? this.timeline.audioSegments : this.timeline.segments;
+    return list.find(s => frame >= s.start && frame <= s.start + s.length) || null;
+  }
+
+  async replaceSegmentImage(seg, file) {
+    if (!seg || !file || !file.type?.startsWith("image/")) return;
+    try {
+      const uploaded = await this.uploadImageAsset(file);
+      if (!uploaded) return;
+      seg.imageFile = uploaded.imageFile;
+      seg.imageB64 = uploaded.imageB64;
+      seg.type = "image";
+      const displayImg = new Image();
+      displayImg.onload = () => {
+        seg.imgObj = displayImg;
+        this.selectionType = "image";
+        this.selectedIndex = this.timeline.segments.findIndex(s => s.id === seg.id);
+        this.updateUIFromSelection();
+        this.commitChanges();
+      };
+      displayImg.src = uploaded.imageB64;
+    } catch (err) {
+      console.error("[PromptRelay] Segment image replace failed", err);
+    }
+  }
+
+  async convertSegmentToImage(seg) {
+    if (!seg) return;
+    const applyImageMode = () => {
+      seg.type = "image";
+      this.selectionType = "image";
+      this.selectedIndex = this.timeline.segments.findIndex(s => s.id === seg.id);
+      this.updateUIFromSelection();
+      this.commitChanges();
+      this.dismissContextMenu();
+    };
+
+    if (seg.imageB64) {
+      applyImageMode();
+      return;
+    }
+
+    const fi = document.createElement("input");
+    fi.type = "file";
+    fi.accept = "image/*";
+    fi.addEventListener("change", async (ev) => {
+      const file = ev.target.files?.[0];
+      if (!file) return;
+      try {
+        const uploaded = await this.uploadImageAsset(file);
+        if (!uploaded) return;
+        seg.imageFile = uploaded.imageFile;
+        seg.imageB64 = uploaded.imageB64;
+        const displayImg = new Image();
+        displayImg.onload = () => {
+          seg.imgObj = displayImg;
+          applyImageMode();
+        };
+        displayImg.src = uploaded.imageB64;
+      } catch (err) {
+        console.error("[PromptRelay] Segment conversion upload failed", err);
+      }
+    });
+    fi.click();
+  }
+
   // --- Async Audio Upload Logic ---
   async handleAudioUpload(files, targetFrameStart = null) {
     const frameRate = this.getFrameRate();
@@ -1629,6 +2154,419 @@ class TimelineEditor {
     this.render();
   }
 
+  trimDurationToLastClip() {
+    const all = [...(this.timeline.segments || []), ...(this.timeline.audioSegments || [])];
+    if (!all.length) return;
+    const lastEnd = Math.max(...all.map(s => (s.start || 0) + (s.length || 0)));
+    const newFrames = Math.max(1, Math.ceil(lastEnd));
+    if (this.durationFramesWidget) this.durationFramesWidget.value = newFrames;
+    if (this.durationSecondsWidget) {
+      this.durationSecondsWidget.value = parseFloat((newFrames / this.getFrameRate()).toFixed(3));
+    }
+    this.commitChanges();
+  }
+
+  syncClipLengthInputFromSelection(seg = null) {
+    if (!this.clipLengthInput || !this.clipLengthUnit) return;
+    const currentSeg = seg || this.getSelectedSegment();
+    this.updateClipLengthLabel(currentSeg);
+    if (!currentSeg) {
+      this.clipLengthInput.value = "";
+      this.clipLengthInput.disabled = true;
+      this.clipLengthUnit.textContent = this.displayModeWidget?.value === "frames" ? "frames" : "s";
+      return;
+    }
+    const inFrames = this.displayModeWidget?.value === "frames";
+    this.clipLengthUnit.textContent = inFrames ? "frames" : "s";
+    const displayVal = inFrames ? currentSeg.length : (currentSeg.length / this.getFrameRate());
+    this.clipLengthInput.value = inFrames ? `${Math.round(displayVal)}` : displayVal.toFixed(2);
+    this.clipLengthInput.disabled = false;
+  }
+
+  updateClipLengthLabel(seg = null) {
+    if (!this.clipLengthLabel) return;
+    if (!seg) {
+      this.clipLengthLabel.textContent = "Clip Length:";
+      return;
+    }
+    const isAudio = this.timeline.audioSegments.some(s => s.id === seg.id);
+    const selectedTrack = isAudio ? this.timeline.audioSegments : this.timeline.segments;
+    const ordered = [...selectedTrack].sort((a, b) => a.start - b.start);
+    const clipIndex = Math.max(1, ordered.findIndex(s => s.id === seg.id) + 1);
+    this.clipLengthLabel.textContent = `Clip #${clipIndex} Length:`;
+  }
+
+  applyClipLengthChange(seg, rawVal, inFrames = false) {
+    if (!seg || !Number.isFinite(rawVal)) return false;
+    const isAudio = this.timeline.audioSegments.some(s => s.id === seg.id);
+    const arr = isAudio ? this.timeline.audioSegments : this.timeline.segments;
+    const sorted = [...arr].sort((a, b) => a.start - b.start);
+    const idx = sorted.findIndex(s => s.id === seg.id);
+    if (idx < 0) return false;
+    const following = sorted.slice(idx + 1);
+    const minLength = 1;
+    const audioMax = isAudio
+      ? Math.max(1, Math.floor((seg.audioDurationFrames || seg.length) - (seg.trimStart || 0)))
+      : Infinity;
+    const newFrames = clamp(Math.round(inFrames ? rawVal : rawVal * this.getFrameRate()), minLength, audioMax);
+    const oldLen = seg.length;
+    const delta = newFrames - oldLen;
+    if (delta === 0) return true;
+    seg.length = newFrames;
+    for (const f of following) {
+      f.start += delta;
+    }
+    const maxEnd = Math.max(
+      0,
+      ...this.timeline.segments.map(s => s.start + s.length),
+      ...this.timeline.audioSegments.map(s => s.start + s.length),
+    );
+    this.growTimelineIfNeeded(maxEnd);
+    this.updateUIFromSelection();
+    this.commitChanges();
+    return true;
+  }
+
+  applyManualSelectedClipLength() {
+    const seg = this.getSelectedSegment();
+    if (!seg || !this.clipLengthInput) return;
+    const inFrames = this.displayModeWidget?.value === "frames";
+    const rawVal = parseFloat(this.clipLengthInput.value);
+    if (!Number.isFinite(rawVal)) {
+      this.syncClipLengthInputFromSelection(seg);
+      return;
+    }
+    this.applyClipLengthChange(seg, rawVal, inFrames);
+    this.syncClipLengthInputFromSelection(seg);
+  }
+
+  rippleDeleteTrackGaps() {
+    const compact = (segments) => {
+      const sorted = [...segments].sort((a, b) => a.start - b.start);
+      let cursor = 0;
+      for (const seg of sorted) {
+        seg.start = cursor;
+        cursor += seg.length;
+      }
+    };
+    compact(this.timeline.segments);
+    compact(this.timeline.audioSegments);
+    this.updateUIFromSelection();
+    this.commitChanges();
+  }
+
+  openPromptEditorModal(kind = "segment") {
+    this.closePromptEditorModal();
+    const isGlobal = kind === "global";
+    if (!isGlobal && this.selectionType !== "image") return;
+    const seg = !isGlobal ? this.getSelectedSegment() : null;
+    if (!isGlobal && !seg) return;
+
+    const backdrop = document.createElement("div");
+    backdrop.className = "pr-prompt-modal-backdrop";
+    const modal = document.createElement("div");
+    modal.className = "pr-prompt-modal";
+    const header = document.createElement("div");
+    header.className = "pr-prompt-modal-header";
+    const title = document.createElement("div");
+    title.className = "pr-prompt-modal-title-wrap";
+    const headerRight = document.createElement("div");
+    headerRight.className = "pr-prompt-modal-header-right";
+    const closeBtn = document.createElement("button");
+    closeBtn.className = "pr-mini-btn";
+    closeBtn.textContent = "Close";
+    closeBtn.addEventListener("click", () => this.closePromptEditorModal());
+    const getOrderedSegments = () => [...this.timeline.segments].sort((a, b) => a.start - b.start);
+    let modalClipIndexInput = null;
+    let modalClipTotal = null;
+
+    if (!isGlobal) {
+      const clipNav = document.createElement("div");
+      clipNav.className = "pr-prompt-modal-clip-nav";
+      const clipLabel = document.createElement("span");
+      clipLabel.textContent = "Clip:";
+      const clipIndexInput = document.createElement("input");
+      clipIndexInput.type = "number";
+      clipIndexInput.min = "1";
+      clipIndexInput.step = "1";
+      clipIndexInput.className = "pr-prompt-modal-clip-input";
+      const clipTotal = document.createElement("span");
+      clipNav.appendChild(clipLabel);
+      clipNav.appendChild(clipIndexInput);
+      clipNav.appendChild(clipTotal);
+      title.appendChild(clipNav);
+
+      const navigateToClip = (targetSeg) => {
+        const idx = this.timeline.segments.findIndex(s => s.id === targetSeg.id);
+        if (idx === -1 || targetSeg.id === seg.id) return;
+        this.selectedIndex = idx;
+        this.selectionType = "image";
+        this.updateUIFromSelection();
+        this.render();
+        this.openPromptEditorModal("segment");
+      };
+      const navigateToClipIndex = (targetIndex) => {
+        const ordered = getOrderedSegments();
+        const clampedIndex = clamp(Math.round(targetIndex), 1, ordered.length);
+        const targetSeg = ordered[clampedIndex - 1];
+        if (!targetSeg) return;
+        navigateToClip(targetSeg);
+      };
+      const applyClipNavigationInput = () => {
+        const requestedIndex = parseInt(clipIndexInput.value, 10);
+        if (!Number.isFinite(requestedIndex)) {
+          refreshSegmentMeta();
+          return;
+        }
+        navigateToClipIndex(requestedIndex);
+      };
+      clipIndexInput.addEventListener("change", applyClipNavigationInput);
+      clipIndexInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") applyClipNavigationInput();
+      });
+      clipIndexInput.addEventListener("blur", () => refreshSegmentMeta());
+
+      modalClipIndexInput = clipIndexInput;
+      modalClipTotal = clipTotal;
+    } else {
+      title.textContent = "Global Prompt";
+    }
+
+    headerRight.appendChild(closeBtn);
+    header.appendChild(title);
+    header.appendChild(headerRight);
+    modal.appendChild(header);
+
+    let clipLengthInput = null;
+    let clipLengthUnit = null;
+    let imageContainer = null;
+    let imagePrimaryBtn = null;
+    let imageRemoveBtn = null;
+    let imageFileInput = null;
+    let imagePreviewEl = null;
+    let imageEmptyEl = null;
+    const getLiveSeg = () => {
+      if (isGlobal || !seg) return null;
+      return this.timeline.segments.find(s => s.id === seg.id) || null;
+    };
+    const refreshSegmentMeta = () => {
+      const liveSeg = getLiveSeg();
+      if (!liveSeg) return;
+      const ordered = getOrderedSegments();
+      const clipIndex = Math.max(1, ordered.findIndex(s => s.id === liveSeg.id) + 1);
+      if (modalClipIndexInput) {
+        modalClipIndexInput.max = `${ordered.length}`;
+        modalClipIndexInput.value = `${clipIndex}`;
+      }
+      if (modalClipTotal) {
+        modalClipTotal.textContent = `of ${ordered.length}`;
+      }
+      if (clipLengthUnit) {
+        const inFrames = this.displayModeWidget?.value === "frames";
+        clipLengthUnit.textContent = inFrames ? "frames" : "s";
+        const displayVal = inFrames ? liveSeg.length : (liveSeg.length / this.getFrameRate());
+        clipLengthInput.value = inFrames ? `${Math.round(displayVal)}` : displayVal.toFixed(2);
+      }
+    };
+    const refreshSegmentImageUi = () => {
+      const liveSeg = getLiveSeg();
+      if (!liveSeg || !imageContainer) return;
+      const hasImage = !!liveSeg.imageB64;
+      if (imagePreviewEl) imagePreviewEl.style.display = hasImage ? "block" : "none";
+      if (imageEmptyEl) imageEmptyEl.style.display = hasImage ? "none" : "flex";
+      if (imagePreviewEl && hasImage) imagePreviewEl.src = liveSeg.imageB64;
+      if (imagePrimaryBtn) imagePrimaryBtn.textContent = hasImage ? "Replace Image" : "Add Image";
+      if (imageRemoveBtn) imageRemoveBtn.style.display = hasImage ? "inline-flex" : "none";
+    };
+    if (!isGlobal) {
+      const metaRow = document.createElement("div");
+      metaRow.className = "pr-prompt-modal-meta";
+      const clipLengthLabel = document.createElement("span");
+      clipLengthLabel.textContent = "Clip Length:";
+      clipLengthInput = document.createElement("input");
+      clipLengthInput.type = "number";
+      clipLengthInput.min = "0";
+      clipLengthInput.step = "0.01";
+      clipLengthInput.className = "pr-clip-length-input";
+      clipLengthUnit = document.createElement("span");
+      const applyModalLength = () => {
+        const liveSeg = getLiveSeg();
+        if (!liveSeg) return;
+        const inFrames = this.displayModeWidget?.value === "frames";
+        const rawVal = parseFloat(clipLengthInput.value);
+        if (!Number.isFinite(rawVal)) {
+          refreshSegmentMeta();
+          return;
+        }
+        this.applyClipLengthChange(liveSeg, rawVal, inFrames);
+        this.syncClipLengthInputFromSelection(liveSeg);
+        refreshSegmentMeta();
+      };
+      clipLengthInput.addEventListener("change", applyModalLength);
+      clipLengthInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") applyModalLength();
+      });
+      clipLengthInput.addEventListener("blur", refreshSegmentMeta);
+      metaRow.appendChild(clipLengthLabel);
+      metaRow.appendChild(clipLengthInput);
+      metaRow.appendChild(clipLengthUnit);
+      modal.appendChild(metaRow);
+
+      imageContainer = document.createElement("div");
+      imageContainer.className = "pr-prompt-modal-image";
+      imagePreviewEl = document.createElement("img");
+      imagePreviewEl.className = "pr-prompt-modal-image-preview";
+      imagePreviewEl.alt = "Clip keyframe";
+      imageEmptyEl = document.createElement("div");
+      imageEmptyEl.className = "pr-prompt-modal-image-empty";
+      imageEmptyEl.textContent = "No keyframe image. Drag/Drop an Image, or click the add Image button";
+      const imageActionRow = document.createElement("div");
+      imageActionRow.className = "pr-prompt-modal-image-actions";
+      imagePrimaryBtn = document.createElement("button");
+      imagePrimaryBtn.className = "pr-mini-btn";
+      imageRemoveBtn = document.createElement("button");
+      imageRemoveBtn.className = "pr-mini-btn";
+      imageRemoveBtn.textContent = "Remove Image";
+      imageFileInput = document.createElement("input");
+      imageFileInput.type = "file";
+      imageFileInput.accept = "image/*";
+      imageFileInput.style.display = "none";
+      imagePrimaryBtn.addEventListener("click", () => imageFileInput.click());
+      const applyModalImageFile = async (file) => {
+        if (!file || !file.type.startsWith("image/")) return;
+        const liveSeg = getLiveSeg();
+        if (!liveSeg) return;
+        try {
+          const uploaded = await this.uploadImageAsset(file);
+          if (!uploaded) return;
+          liveSeg.imageFile = uploaded.imageFile;
+          liveSeg.imageB64 = uploaded.imageB64;
+          liveSeg.type = "image";
+          const displayImg = new Image();
+          displayImg.onload = () => {
+            liveSeg.imgObj = displayImg;
+            this.updateUIFromSelection();
+            this.commitChanges();
+            this.render();
+            refreshSegmentImageUi();
+          };
+          displayImg.src = uploaded.imageB64;
+        } catch (err) {
+          console.error("[PromptRelay] Modal image upload failed", err);
+        }
+      };
+      imageFileInput.addEventListener("change", async (ev) => {
+        const file = ev.target.files?.[0];
+        imageFileInput.value = "";
+        await applyModalImageFile(file);
+      });
+      imageContainer.addEventListener("dragover", (ev) => {
+        ev.preventDefault();
+        imageContainer.classList.add("drag-active");
+      });
+      imageContainer.addEventListener("dragleave", (ev) => {
+        if (!imageContainer.contains(ev.relatedTarget)) {
+          imageContainer.classList.remove("drag-active");
+        }
+      });
+      imageContainer.addEventListener("drop", async (ev) => {
+        ev.preventDefault();
+        imageContainer.classList.remove("drag-active");
+        const file = ev.dataTransfer?.files?.[0];
+        await applyModalImageFile(file);
+      });
+      imageRemoveBtn.addEventListener("click", () => {
+        const liveSeg = getLiveSeg();
+        if (!liveSeg) return;
+        liveSeg.type = "text";
+        delete liveSeg.imageFile;
+        delete liveSeg.imageB64;
+        delete liveSeg.imgObj;
+        this.updateUIFromSelection();
+        this.commitChanges();
+        this.render();
+        refreshSegmentImageUi();
+      });
+      imageActionRow.appendChild(imagePrimaryBtn);
+      imageActionRow.appendChild(imageRemoveBtn);
+      imageContainer.appendChild(imagePreviewEl);
+      imageContainer.appendChild(imageEmptyEl);
+      imageContainer.appendChild(imageActionRow);
+      imageContainer.appendChild(imageFileInput);
+      modal.appendChild(imageContainer);
+      refreshSegmentMeta();
+      refreshSegmentImageUi();
+    }
+
+    const textarea = document.createElement("textarea");
+    textarea.value = isGlobal ? (this.globalPromptWidget?.value || "") : (seg.prompt || "");
+    textarea.placeholder = isGlobal ? "Enter global prompt..." : "Enter prompt for selected segment...";
+    textarea.addEventListener("input", () => {
+      if (isGlobal) {
+        if (this.globalPromptWidget) {
+          this.globalPromptWidget.value = textarea.value;
+          if (this.globalPromptWidget.callback) this.globalPromptWidget.callback(textarea.value);
+        }
+        if (this.globalPromptInput) {
+          this.globalPromptInput.value = textarea.value;
+          this.autoSizeTextarea(this.globalPromptInput, 220);
+        }
+      } else {
+        const liveSeg = getLiveSeg();
+        if (!liveSeg) return;
+        liveSeg.prompt = textarea.value;
+        if (this.promptInput) this.promptInput.value = textarea.value;
+        this.commitChanges(true);
+        this.render();
+      }
+    });
+    const modalPromptTools = document.createElement("div");
+    modalPromptTools.className = "pr-input-tools";
+    const modalCopyBtn = document.createElement("button");
+    modalCopyBtn.className = "pr-input-icon-btn";
+    modalCopyBtn.innerHTML = ICONS.copy;
+    modalCopyBtn.title = "Copy prompt";
+    modalCopyBtn.addEventListener("click", () => this.copyTextToClipboard(textarea.value));
+    const modalClearBtn = document.createElement("button");
+    modalClearBtn.className = "pr-input-icon-btn";
+    modalClearBtn.innerHTML = ICONS.clear;
+    modalClearBtn.title = "Clear prompt";
+    modalClearBtn.addEventListener("click", () => {
+      textarea.value = "";
+      textarea.dispatchEvent(new Event("input"));
+      textarea.focus();
+    });
+    modalPromptTools.appendChild(modalCopyBtn);
+    modalPromptTools.appendChild(modalClearBtn);
+
+    backdrop.addEventListener("mousedown", (e) => {
+      if (e.target === backdrop) this.closePromptEditorModal();
+    });
+    this._modalEscHandler = (e) => {
+      if (e.key === "Escape") this.closePromptEditorModal();
+    };
+    document.addEventListener("keydown", this._modalEscHandler);
+
+    modal.appendChild(modalPromptTools);
+    modal.appendChild(textarea);
+    backdrop.appendChild(modal);
+    document.body.appendChild(backdrop);
+    this._promptModalEl = backdrop;
+    textarea.focus();
+    textarea.selectionStart = textarea.selectionEnd = textarea.value.length;
+  }
+
+  closePromptEditorModal() {
+    if (this._promptModalEl) {
+      this._promptModalEl.remove();
+      this._promptModalEl = null;
+    }
+    if (this._modalEscHandler) {
+      document.removeEventListener("keydown", this._modalEscHandler);
+      this._modalEscHandler = null;
+    }
+  }
+
   formatTime(frames, dropSuffix = false) {
     const mode = this.displayModeWidget ? this.displayModeWidget.value : "seconds";
     if (mode === "seconds") {
@@ -1657,6 +2595,11 @@ class TimelineEditor {
       this.durationSecondsWidget.hidden = false;
       delete this.durationSecondsWidget.computeSize;
     }
+    if (this.useGlobalPromptCheckbox && this.useGlobalPromptWidget) {
+      this.useGlobalPromptCheckbox.checked = !!this.useGlobalPromptWidget.value;
+    }
+    this.syncGlobalPromptInputFromWidget();
+    this.syncClipLengthInputFromSelection();
 
     // Force node resize and redraw deferred to next tick
     setTimeout(() => {
@@ -1692,6 +2635,7 @@ class TimelineEditor {
 
     if (this.selectionType === "audio" && seg) {
       this.promptInput.style.display = "none";
+      if (this.segmentPromptTools) this.segmentPromptTools.style.display = "none";
       this.strengthRow.style.display = "flex";
       this.audioInfoArea.style.display = "block";
       this.audioInfoArea.innerHTML = `
@@ -1704,11 +2648,14 @@ class TimelineEditor {
     } else {
       this.audioInfoArea.style.display = "none";
       this.promptInput.style.display = "block";
+      if (this.segmentPromptTools) this.segmentPromptTools.style.display = "flex";
       this.strengthRow.style.display = "flex";
 
       if (seg) {
         this.promptInput.value = seg.prompt || "";
         this.promptInput.disabled = false;
+        if (this.segmentCopyBtn) this.segmentCopyBtn.disabled = false;
+        if (this.segmentClearBtn) this.segmentClearBtn.disabled = false;
 
         const isImage = seg.type !== "text";
         const strength = isImage ? (seg.guideStrength ?? 1.0) : 1.0;
@@ -1717,10 +2664,14 @@ class TimelineEditor {
       } else {
         this.promptInput.value = "";
         this.promptInput.disabled = true;
+        if (this.segmentCopyBtn) this.segmentCopyBtn.disabled = true;
+        if (this.segmentClearBtn) this.segmentClearBtn.disabled = true;
         this.strengthValue.value = "1.00";
         this.strengthValue.disabled = true;
       }
     }
+
+    this.syncClipLengthInputFromSelection(seg);
 
     if (this.segmentBoundsDisplay) {
       if (seg) {
@@ -1772,6 +2723,10 @@ class TimelineEditor {
 
     // Sort segments so that the selected one is drawn last (on top)
     const isImageSelection = this.selectionType === "image";
+    const segmentOrderByStart = [...renderSegments]
+      .filter(s => s.type !== "ghost")
+      .sort((a, b) => a.start - b.start);
+    const segmentIndexMap = new Map(segmentOrderByStart.map((s, i) => [s.id, i + 1]));
     const sortedSegments = [...renderSegments].sort((a, b) => {
       const aSel = isImageSelection && a.id === activeSegId;
       const bSel = isImageSelection && b.id === activeSegId;
@@ -1791,6 +2746,10 @@ class TimelineEditor {
       const startX = (seg.start / totalFrames) * width;
       const pxWidth = (seg.length / totalFrames) * width;
       const isSelected = (this.selectionType === "image" && seg.id === activeSegId);
+      const clipIndex = segmentIndexMap.get(seg.id);
+      const showClipIndex = clipIndex !== undefined && seg.type !== "ghost" && pxWidth > 20;
+      const promptBottomLimit = RULER_HEIGHT + this.blockHeight
+        - (showClipIndex ? (CLIP_INDEX_LABEL_HEIGHT + CLIP_INDEX_LABEL_BOTTOM_MARGIN + CLIP_INDEX_PROMPT_GAP) : 0);
 
       const originalSeg = this.timeline.segments.find(s => s.id === seg.id);
       const imgObj = originalSeg ? originalSeg.imgObj : seg.imgObj;
@@ -1863,9 +2822,10 @@ class TimelineEditor {
         this.ctx.restore();
 
         // --- Prompt subtitle overlay ---
-        if (seg.prompt && seg.type !== "ghost" && pxWidth > 24) {
-          const overlayH = Math.round(this.blockHeight * 0.20);
-          const overlayY = RULER_HEIGHT + this.blockHeight - overlayH;
+        const maxOverlayH = Math.max(0, promptBottomLimit - (RULER_HEIGHT + 1));
+        if (seg.prompt && seg.type !== "ghost" && pxWidth > 24 && maxOverlayH > 10) {
+          const overlayH = Math.min(Math.round(this.blockHeight * 0.20), maxOverlayH);
+          const overlayY = promptBottomLimit - overlayH;
 
           this.ctx.save();
           this.ctx.beginPath();
@@ -1899,10 +2859,11 @@ class TimelineEditor {
       } else if (seg.type === "text") {
         const pad = 8;
         const boxW = pxWidth - pad * 2;
-        if (boxW > 12) {
+        const textBoxHeight = promptBottomLimit - (RULER_HEIGHT + pad) - pad;
+        if (boxW > 12 && textBoxHeight > 0) {
           this.ctx.save();
           this.ctx.beginPath();
-          this.ctx.rect(startX + pad, RULER_HEIGHT + pad, boxW, this.blockHeight - pad * 2);
+          this.ctx.rect(startX + pad, RULER_HEIGHT + pad, boxW, textBoxHeight);
           this.ctx.clip();
           this.ctx.fillStyle = "#e0e3ed";
           this.ctx.font = "11px sans-serif";
@@ -1924,14 +2885,14 @@ class TimelineEditor {
           }
           if (line) lines.push(line);
 
-          const maxLines = Math.max(1, Math.floor((this.blockHeight - pad * 2) / lineH));
+          const maxLines = Math.max(1, Math.floor(textBoxHeight / lineH));
           if (lines.length > maxLines) {
             lines = lines.slice(0, maxLines);
             lines[lines.length - 1] += "…";
           }
 
           const totalTextHeight = lines.length * lineH;
-          let ty = RULER_HEIGHT + (this.blockHeight - totalTextHeight) / 2 + 2;
+          let ty = RULER_HEIGHT + pad + Math.max(0, (textBoxHeight - totalTextHeight) / 2) + 2;
 
           for (const l of lines) {
             this.ctx.fillText(l, startX + pxWidth / 2, ty);
@@ -1957,6 +2918,31 @@ class TimelineEditor {
         this.ctx.lineWidth = 1.5;
         this.ctx.strokeRect(startX, RULER_HEIGHT + 1, pxWidth, this.blockHeight - 2);
       }
+
+      if (showClipIndex) {
+        this.ctx.save();
+        const labelText = `#${clipIndex}`;
+        this.ctx.font = "600 10px sans-serif";
+        const labelW = Math.min(pxWidth - 6, Math.max(38, this.ctx.measureText(labelText).width + 16));
+        const labelH = CLIP_INDEX_LABEL_HEIGHT;
+        const labelX = startX + (pxWidth - labelW) / 2;
+        const labelY = RULER_HEIGHT + this.blockHeight - labelH - CLIP_INDEX_LABEL_BOTTOM_MARGIN;
+        this.ctx.fillStyle = isSelected ? "rgba(30, 78, 124, 0.95)" : "rgba(11, 23, 36, 0.9)";
+        this.ctx.strokeStyle = isSelected ? "rgba(191, 227, 255, 0.95)" : "rgba(121, 179, 231, 0.65)";
+        this.ctx.lineWidth = 1;
+        this.ctx.shadowColor = "rgba(0, 0, 0, 0.35)";
+        this.ctx.shadowBlur = 8;
+        this.ctx.beginPath();
+        this.ctx.roundRect(labelX, labelY, labelW, labelH, 6);
+        this.ctx.fill();
+        this.ctx.shadowBlur = 0;
+        this.ctx.stroke();
+        this.ctx.fillStyle = "#f3f8ff";
+        this.ctx.textAlign = "center";
+        this.ctx.textBaseline = "middle";
+        this.ctx.fillText(labelText, labelX + labelW / 2, labelY + labelH / 2);
+        this.ctx.restore();
+      }
       this.ctx.globalAlpha = 1.0;
     }
 
@@ -1975,18 +2961,20 @@ class TimelineEditor {
       }
 
       if (seg.type === "ghost") {
+        const audioRectY = trackY + AUDIO_TRACK_INSET_Y;
+        const audioRectH = Math.max(0, this.audioTrackHeight - AUDIO_TRACK_INSET_Y * 2);
         this.ctx.fillStyle = "#1a1a1a";
-        this.ctx.fillRect(startX, trackY, pxWidth, this.audioTrackHeight);
+        this.ctx.fillRect(startX, audioRectY, pxWidth, audioRectH);
         this.ctx.strokeStyle = "#555";
         this.ctx.lineWidth = 2;
         this.ctx.setLineDash([5, 5]);
-        this.ctx.strokeRect(startX, trackY, pxWidth, this.audioTrackHeight);
+        this.ctx.strokeRect(startX, audioRectY, pxWidth, audioRectH);
         this.ctx.setLineDash([]);
         this.ctx.fillStyle = "#888";
         this.ctx.textAlign = "center";
         this.ctx.textBaseline = "middle";
         this.ctx.font = "bold 12px sans-serif";
-        this.ctx.fillText("Drop Audio", startX + pxWidth / 2, trackY + this.audioTrackHeight / 2);
+        this.ctx.fillText("Drop Audio", startX + pxWidth / 2, audioRectY + audioRectH / 2);
       } else {
         this.drawAudioSegmentVisuals(this.ctx, seg, isSelected, trackY, this.audioTrackHeight, startX, pxWidth);
       }
@@ -2097,7 +3085,7 @@ class TimelineEditor {
         this.ctx.font = "14px sans-serif";
         this.ctx.textAlign = "center";
         this.ctx.textBaseline = "middle";
-        this.ctx.fillText("+", gap.centerX, gap.centerY + 1);
+        this.ctx.fillText("+", gap.centerX, gap.centerY + (gap.track === "audio" ? -1 : 1));
       }
     }
 
@@ -2175,15 +3163,17 @@ class TimelineEditor {
   }
 
   drawAudioSegmentVisuals(ctx, seg, isSelected, yOffset, trackHeight, startX, pxWidth) {
+    const audioRectY = yOffset + AUDIO_TRACK_INSET_Y;
+    const audioRectH = Math.max(0, trackHeight - AUDIO_TRACK_INSET_Y * 2);
     ctx.fillStyle = isSelected ? "#2a4a3a" : "#1a2a1a";
-    ctx.fillRect(startX, yOffset + 2, pxWidth, trackHeight - 3);
+    ctx.fillRect(startX, audioRectY, pxWidth, audioRectH);
 
     if (seg.waveformPeaks && pxWidth > 0) {
       ctx.fillStyle = isSelected ? "rgba(100, 255, 100, 0.6)" : "rgba(100, 255, 100, 0.3)";
       const startRatio = seg.trimStart / seg.audioDurationFrames;
       const endRatio = (seg.trimStart + seg.length) / seg.audioDurationFrames;
       const peakCount = seg.waveformPeaks.length;
-      const centerY = yOffset + trackHeight / 2;
+      const centerY = audioRectY + audioRectH / 2;
 
       ctx.beginPath();
       for (let i = 0; i < pxWidth; i++) {
@@ -2193,7 +3183,7 @@ class TimelineEditor {
 
         if (peakIdx >= 0 && peakIdx < peakCount) {
           const val = seg.waveformPeaks[peakIdx];
-          const amp = (val * (trackHeight - 12) / 2) * 0.9;
+          const amp = (val * Math.max(0, audioRectH - 10) / 2) * 0.9;
           ctx.fillRect(startX + i, centerY - amp, 1, amp * 2);
         }
       }
@@ -2201,7 +3191,7 @@ class TimelineEditor {
 
     ctx.strokeStyle = isSelected ? "#4fff8f" : "#000";
     ctx.lineWidth = 1.5;
-    ctx.strokeRect(startX, yOffset + 2, pxWidth, trackHeight - 3);
+    ctx.strokeRect(startX, audioRectY, pxWidth, audioRectH);
 
     if (isSelected) {
       ctx.fillStyle = "#4fff8f";
@@ -2219,7 +3209,7 @@ class TimelineEditor {
     ctx.textAlign = "left";
     ctx.save();
     ctx.beginPath();
-    ctx.rect(startX, yOffset + 2, pxWidth, trackHeight - 3);
+    ctx.rect(startX, audioRectY, pxWidth, audioRectH);
     ctx.clip();
 
     let text = seg.fileName || "Audio Track";
@@ -2231,7 +3221,7 @@ class TimelineEditor {
       text = text + "...";
     }
 
-    ctx.fillText(text, startX + 6, yOffset + 8);
+    ctx.fillText(text, startX + 6, audioRectY + 6);
     ctx.restore();
   }
 
@@ -2426,6 +3416,22 @@ class TimelineEditor {
       this._dragTargetId = targetArray[hit.index].id;
     }
     this.render();
+  }
+
+  onCanvasDoubleClick(e) {
+    if (e.button !== 0) return;
+    const { x, y } = this.getMousePos(e);
+    const hit = this.getHitTest(x, y);
+    if (!hit || hit.track !== "image") return;
+    let index = -1;
+    if (hit.type === "center" || hit.type === "edge") index = hit.index;
+    if (hit.type === "joint") index = hit.leftIndex;
+    if (index < 0 || !this.timeline.segments[index]) return;
+    this.selectionType = "image";
+    this.selectedIndex = index;
+    this.updateUIFromSelection();
+    this.render();
+    this.openPromptEditorModal("segment");
   }
 
   onMouseMove(e) {
@@ -2872,14 +3878,14 @@ class TimelineEditor {
       if (seg.start > cursor) {
         const x0 = (cursor / totalFrames) * width;
         const x1 = (seg.start / totalFrames) * width;
-        gaps.push({ track: 'audio', frameStart: cursor, frameEnd: seg.start, centerX: (x0 + x1) / 2, centerY: RULER_HEIGHT + this.blockHeight + this.audioTrackHeight / 2, widthPx: x1 - x0 });
+        gaps.push({ track: 'audio', frameStart: cursor, frameEnd: seg.start, centerX: (x0 + x1) / 2, centerY: RULER_HEIGHT + this.blockHeight + AUDIO_TRACK_INSET_Y + (this.audioTrackHeight - AUDIO_TRACK_INSET_Y * 2) / 2, widthPx: x1 - x0 });
       }
       cursor = seg.start + seg.length;
     }
     if (cursor < outputFrames) {
       const x0 = (cursor / totalFrames) * width;
       const x1 = (outputFrames / totalFrames) * width;
-      gaps.push({ track: 'audio', frameStart: cursor, frameEnd: outputFrames, centerX: (x0 + x1) / 2, centerY: RULER_HEIGHT + this.blockHeight + this.audioTrackHeight / 2, widthPx: x1 - x0 });
+      gaps.push({ track: 'audio', frameStart: cursor, frameEnd: outputFrames, centerX: (x0 + x1) / 2, centerY: RULER_HEIGHT + this.blockHeight + AUDIO_TRACK_INSET_Y + (this.audioTrackHeight - AUDIO_TRACK_INSET_Y * 2) / 2, widthPx: x1 - x0 });
     }
 
     return gaps;
@@ -2947,8 +3953,32 @@ class TimelineEditor {
     menu.style.left = `${clientX + 6}px`;
     menu.style.top = `${clientY - 10}px`;
 
-    const isImage = trackType !== "audio" && trackType !== "text" && seg.imageB64;
+    if (trackType !== "audio") {
+      const convertBtn = document.createElement("button");
+      convertBtn.className = "pr-gap-menu-btn";
+      if (seg.type === "text") {
+        convertBtn.innerHTML = "Convert to Image+Prompt";
+        convertBtn.onclick = async () => {
+          await this.convertSegmentToImage(seg);
+        };
+      } else {
+        convertBtn.innerHTML = "Convert to Prompt-Only";
+        convertBtn.onclick = () => {
+          seg.type = "text";
+          delete seg.imageFile;
+          delete seg.imageB64;
+          delete seg.imgObj;
+          this.selectionType = "image";
+          this.selectedIndex = this.timeline.segments.findIndex(s => s.id === seg.id);
+          this.updateUIFromSelection();
+          this.commitChanges();
+          this.dismissContextMenu();
+        };
+      }
+      menu.appendChild(convertBtn);
+    }
 
+    const isImage = trackType !== "audio" && trackType !== "text" && seg.imageB64;
     if (isImage) {
       const copyBtn = document.createElement("button");
       copyBtn.className = "pr-gap-menu-btn";
@@ -2992,6 +4022,7 @@ class TimelineEditor {
     }
 
     if (trackType !== "audio") {
+
       const copyPromptBtn = document.createElement("button");
       copyPromptBtn.className = "pr-gap-menu-btn";
       copyPromptBtn.innerHTML = `Copy Prompt`;
@@ -3004,6 +4035,24 @@ class TimelineEditor {
         this.dismissContextMenu();
       };
       menu.appendChild(copyPromptBtn);
+
+      const addBeforeBtn = document.createElement("button");
+      addBeforeBtn.className = "pr-gap-menu-btn";
+      addBeforeBtn.innerHTML = "Add Clip Before";
+      addBeforeBtn.onclick = () => {
+        this.insertClipAdjacent(seg, "before");
+        this.dismissContextMenu();
+      };
+      menu.appendChild(addBeforeBtn);
+
+      const addAfterBtn = document.createElement("button");
+      addAfterBtn.className = "pr-gap-menu-btn";
+      addAfterBtn.innerHTML = "Add Clip After";
+      addAfterBtn.onclick = () => {
+        this.insertClipAdjacent(seg, "after");
+        this.dismissContextMenu();
+      };
+      menu.appendChild(addAfterBtn);
     }
 
     const copySegBtn = document.createElement("button");
@@ -3486,42 +4535,6 @@ class TimelineEditor {
       menu.appendChild(this._makeSettingRow("Img Compression", createScrubbableNumberControl(compWidget, 1, 0, 100, false)));
     }
 
-    // --- Global Prompt Toggle ---
-    const globalPromptWidget = this.node.widgets?.find(w => w.name === "global_prompt");
-    if (globalPromptWidget) {
-      const cb = document.createElement("input");
-      cb.type = "checkbox";
-      cb.checked = !(globalPromptWidget.options && globalPromptWidget.options.hidden);
-      cb.style.cursor = "pointer";
-      cb.addEventListener("change", () => {
-        const isVisible = cb.checked;
-        if (!globalPromptWidget.options) globalPromptWidget.options = {};
-        globalPromptWidget.options.hidden = !isVisible;
-
-        if (isVisible) {
-          delete globalPromptWidget.computeSize;
-          globalPromptWidget.hidden = false;
-          if (globalPromptWidget.element) globalPromptWidget.element.style.display = "";
-        } else {
-          globalPromptWidget.computeSize = () => [0, 0];
-          globalPromptWidget.hidden = true;
-          if (globalPromptWidget.element) globalPromptWidget.element.style.display = "none";
-        }
-
-        // Force refresh via display mode double-toggle trick
-        if (this.displayModeWidget) {
-          const origVal = this.displayModeWidget.value;
-          const otherVal = origVal === "frames" ? "seconds" : "frames";
-          this.displayModeWidget.value = otherVal;
-          if (this.displayModeWidget.callback) this.displayModeWidget.callback(otherVal);
-          this.displayModeWidget.value = origVal;
-          if (this.displayModeWidget.callback) this.displayModeWidget.callback(origVal);
-        }
-      });
-      menu.appendChild(this._makeSettingRow("Use Global Prompt", cb));
-    }
-
-
     // --- Show/Hide on Node Toggle ---
     const toggleBtn = document.createElement("button");
     toggleBtn.className = "pr-settings-toggle-btn";
@@ -3568,6 +4581,44 @@ class TimelineEditor {
     if (this._settingsDismisser) { document.removeEventListener("mousedown", this._settingsDismisser); this._settingsDismisser = null; }
   }
 
+
+  insertClipAdjacent(targetSeg, direction = "after") {
+    if (!targetSeg) return;
+    const frameRate = this.getFrameRate();
+    const newLen = Math.max(1, frameRate);
+    const sorted = [...this.timeline.segments].sort((a, b) => a.start - b.start);
+    const idx = sorted.findIndex(s => s.id === targetSeg.id);
+    if (idx < 0) return;
+
+    const insertStart = direction === "before"
+      ? targetSeg.start
+      : targetSeg.start + targetSeg.length;
+    const affectedStartIdx = direction === "before" ? idx : idx + 1;
+    for (let i = affectedStartIdx; i < sorted.length; i++) {
+      sorted[i].start += newLen;
+    }
+
+    const newSeg = {
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+      start: insertStart,
+      length: newLen,
+      prompt: "",
+      type: "text",
+    };
+    sorted.push(newSeg);
+    sorted.sort((a, b) => a.start - b.start);
+    this.timeline.segments = sorted;
+    const maxEnd = Math.max(
+      0,
+      ...this.timeline.segments.map(s => s.start + s.length),
+      ...this.timeline.audioSegments.map(s => s.start + s.length),
+    );
+    this.growTimelineIfNeeded(maxEnd);
+    this.selectionType = "image";
+    this.selectedIndex = this.timeline.segments.findIndex(s => s.id === newSeg.id);
+    this.updateUIFromSelection();
+    this.commitChanges();
+  }
 
   addSegmentInGap(frameStart, frameEnd, type = "text") {
     const seg = {
@@ -3779,6 +4830,7 @@ const APPENDED_WIDGET_DEFAULTS = [
   ["timeline_data", "{}"],
   ["local_prompts", ""],
   ["segment_lengths", ""],
+  ["use_global_prompt", true],
 ];
 
 app.registerExtension({
@@ -3792,7 +4844,8 @@ app.registerExtension({
 
         for (const [name, def] of APPENDED_WIDGET_DEFAULTS) {
           if (!this.widgets?.find(w => w.name === name)) {
-            this.addWidget("string", name, def, () => { });
+            const kind = typeof def === "boolean" ? "toggle" : "string";
+            this.addWidget(kind, name, def, () => { });
           }
         }
         for (const w of this.widgets) {
@@ -3808,18 +4861,7 @@ app.registerExtension({
           compWidget.value = 18;
         }
 
-        // Hide global prompt by default on creation without destroying its DOM element
-        const globalPromptWidget = this.widgets?.find(w => w.name === "global_prompt");
-        if (globalPromptWidget) {
-          if (!globalPromptWidget.options) globalPromptWidget.options = {};
-          globalPromptWidget.options.hidden = true;
-          globalPromptWidget.hidden = true;
-          globalPromptWidget.computeSize = () => [0, 0];
-          setTimeout(() => {
-            if (globalPromptWidget.element) globalPromptWidget.element.style.display = "none";
-          }, 0);
-        }
-
+        const self = this;
         const container = document.createElement("div");
         const widget = this.addDOMWidget("timeline_ui", "timeline_ui", container, {
           getValue: () => "",
@@ -3828,10 +4870,13 @@ app.registerExtension({
 
         widget.computeSize = function (width) {
           const canvasH = self._timelineEditor ? self._timelineEditor.canvasHeight : CANVAS_HEIGHT;
-          return [width, canvasH + 235];
+          if (self._timelineEditor?.wrapper) {
+            const measuredH = Math.ceil(self._timelineEditor.wrapper.scrollHeight);
+            return [width, Math.max(canvasH + 320, measuredH + 16)];
+          }
+          return [width, canvasH + 320];
         };
 
-        const self = this;
         setTimeout(() => {
           try {
             self._timelineEditor = new TimelineEditor(self, container, widget);
@@ -3864,6 +4909,7 @@ app.registerExtension({
               this._timelineEditor.selectedIndex, -1,
               Math.max(-1, this._timelineEditor.timeline.segments.length - 1)
             );
+            this._timelineEditor.syncGlobalPromptInputFromWidget();
             this._timelineEditor.updateUIFromSelection();
             this._timelineEditor.render();
           }
