@@ -20,7 +20,7 @@
  * @property {ParsedShot[]} shots
  */
 
-const GLOBAL_HEADER_REGEX = /^\s*GLOBAL:\s*$/i;
+const GLOBAL_HEADER_REGEX = /^\s*GLOBAL:\s*(.*)$/i;
 const SHOT_LINE_REGEX = /^\s*SHOT\b/i;
 const SHOT_HEADER_REGEX = /^\s*SHOT\s+(\d+)\s*\|\s*(.*?)\s*$/i;
 const DURATION_REGEX = /^(\d+(?:\.\d+)?)\s*s?$/i;
@@ -58,6 +58,8 @@ function parseShotScriptDocument(text) {
   let globalPrompt = "";
 
   if (firstContentLine !== -1 && GLOBAL_HEADER_REGEX.test(lines[firstContentLine])) {
+    const globalHeaderMatch = lines[firstContentLine].match(GLOBAL_HEADER_REGEX);
+    const inlineGlobalPrompt = globalHeaderMatch ? globalHeaderMatch[1] : "";
     let globalEnd = lines.length;
     for (let i = firstContentLine + 1; i < lines.length; i++) {
       if (SHOT_LINE_REGEX.test(lines[i])) {
@@ -65,7 +67,12 @@ function parseShotScriptDocument(text) {
         break;
       }
     }
-    globalPrompt = lines.slice(firstContentLine + 1, globalEnd).join("\n");
+    const continuationPrompt = lines.slice(firstContentLine + 1, globalEnd).join("\n");
+    if (inlineGlobalPrompt && continuationPrompt) {
+      globalPrompt = `${inlineGlobalPrompt}\n${continuationPrompt}`;
+    } else {
+      globalPrompt = inlineGlobalPrompt || continuationPrompt;
+    }
   }
 
   for (let i = 0; i < lines.length; i++) {
@@ -169,9 +176,9 @@ function formatShotScriptParseErrors(errors) {
  */
 function formatShotScript(input) {
   const sections = [];
-  const globalPrompt = input.globalPrompt ?? "";
+  const globalPrompt = (input.globalPrompt ?? "").trim();
   if (globalPrompt) {
-    sections.push(`GLOBAL:\n${globalPrompt}`);
+    sections.push(`GLOBAL: ${globalPrompt}`);
   }
 
   for (const shot of input.shots) {

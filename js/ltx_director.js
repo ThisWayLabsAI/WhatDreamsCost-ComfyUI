@@ -2709,14 +2709,14 @@ class TimelineEditor {
 
     const hint = document.createElement("div");
     hint.className = "pr-shot-script-hint";
-    hint.textContent = "Paste a script with optional GLOBAL and required SHOT blocks. Import replaces the current clip timeline, preserves audio, and recalculates clip timing cumulatively.";
+    hint.textContent = "Paste a script with optional GLOBAL and required SHOT blocks (`GLOBAL: ...` preferred; legacy `GLOBAL:` block still supported). Import replaces the current clip timeline, preserves audio, and recalculates clip timing cumulatively.";
 
     const errorBox = document.createElement("div");
     errorBox.className = "pr-shot-script-errors";
 
     const textarea = document.createElement("textarea");
     textarea.className = "pr-shot-script-textarea";
-    textarea.placeholder = "GLOBAL:\nDescribe global prompt here.\n\nSHOT 1 | 3s\nDescribe shot 1 here.\n\nSHOT 2 | 2.5s\nDescribe shot 2 here.";
+    textarea.placeholder = "GLOBAL: Describe global prompt here.\n\nSHOT 1 | 3s\nDescribe shot 1 here.\n\nSHOT 2 | 2.5s\nDescribe shot 2 here.";
 
     const setError = (message = "") => {
       errorBox.textContent = message;

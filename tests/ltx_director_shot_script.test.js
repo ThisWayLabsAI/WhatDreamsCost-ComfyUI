@@ -8,9 +8,8 @@ const {
   parseShotScriptDocument,
 } = require("../js/ltx_director_shot_script.js");
 
-test("parseShotScript parses a valid script with global prompt", () => {
-  const parsed = parseShotScriptDocument(`GLOBAL:
-1903 Kitty Hawk. Historical realism.
+test("parseShotScript parses a valid script with inline global prompt", () => {
+  const parsed = parseShotScriptDocument(`GLOBAL: 1903 Kitty Hawk. Historical realism.
 
 SHOT 1 | 3s
 Wide low-angle shot beside the launch rail.
@@ -18,7 +17,7 @@ Wide low-angle shot beside the launch rail.
 SHOT 2 | 2s
 The Wright Flyer begins moving forward.`);
 
-  assert.equal(parsed.globalPrompt, "1903 Kitty Hawk. Historical realism.\n");
+  assert.equal(parsed.globalPrompt, "1903 Kitty Hawk. Historical realism.");
   assert.deepEqual(parsed.shots, [
     {
       shotNumber: 1,
@@ -31,6 +30,17 @@ The Wright Flyer begins moving forward.`);
       prompt: "The Wright Flyer begins moving forward.",
     },
   ]);
+});
+
+test("parseShotScript still supports legacy global prompt block format", () => {
+  const parsed = parseShotScriptDocument(`GLOBAL:
+1903 Kitty Hawk. Historical realism.
+
+SHOT 1 | 3s
+Wide low-angle shot beside the launch rail.`);
+
+  assert.equal(parsed.globalPrompt, "1903 Kitty Hawk. Historical realism.\n");
+  assert.equal(parsed.shots.length, 1);
 });
 
 test("parseShotScript supports decimal durations", () => {
@@ -98,8 +108,7 @@ test("exportTimelineToShotScript serializes the timeline in shot script format",
     ],
   });
 
-  assert.equal(text, `GLOBAL:
-Historical realism.
+  assert.equal(text, `GLOBAL: Historical realism.
 
 SHOT 1 | 3s
 First prompt.
