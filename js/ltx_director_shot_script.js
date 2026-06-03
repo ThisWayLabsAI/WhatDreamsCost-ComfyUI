@@ -267,7 +267,7 @@ function formatShotScriptParseErrors(errors) {
  */
 function formatShotScript(input) {
   const sections = [];
-  const globalPrompt = (input.globalPrompt ?? "").trim();
+  const globalPrompt = trimEdgeBlankLines(normalizeLineEndings(input.globalPrompt ?? ""));
   if (globalPrompt) {
     sections.push(`GLOBAL: ${globalPrompt}`);
   }
@@ -277,7 +277,10 @@ function formatShotScript(input) {
   }
 
   for (const shot of input.shots) {
-    sections.push(`CLIP ${shot.shotNumber} | ${formatDurationSeconds(shot.duration)}s\n${shot.prompt ?? ""}`);
+    const prompt = trimEdgeBlankLines(normalizeLineEndings(shot.prompt ?? ""));
+    sections.push(prompt
+      ? `CLIP ${shot.shotNumber} | ${formatDurationSeconds(shot.duration)}s\n${prompt}`
+      : `CLIP ${shot.shotNumber} | ${formatDurationSeconds(shot.duration)}s`);
   }
 
   return sections.join("\n\n");

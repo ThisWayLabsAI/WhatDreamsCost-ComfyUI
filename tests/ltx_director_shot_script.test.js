@@ -218,3 +218,24 @@ First prompt.
 CLIP 2 | 2s
 Second prompt.`);
 });
+
+test("exportTimelineToShotScript trims blank edge lines from exported prompts", () => {
+  const text = exportTimelineToShotScript({
+    globalPrompt: "\n\nHistorical realism.\n\n",
+    frameRate: 24,
+    segments: [
+      { start: 0, length: 24, prompt: "\n\nFirst prompt.\n\n" },
+      { start: 24, length: 24, prompt: "" },
+    ],
+  });
+
+  assert.equal(text, `GLOBAL: Historical realism.
+
+VIDEO:
+total_duration: 2
+
+CLIP 1 | 1s
+First prompt.
+
+CLIP 2 | 1s`);
+});
