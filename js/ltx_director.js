@@ -723,7 +723,7 @@ const STYLES = `
   .pr-global-prompt-input {
     width: 100%;
     min-height: 72px;
-    max-height: 220px;
+    max-height: 110px;
     background: #222;
     color: #e0e0e0;
     border: 1px solid #111;
