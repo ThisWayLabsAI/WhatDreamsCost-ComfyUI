@@ -35,6 +35,16 @@ const CLIP_LINE_REGEX = /^\s*(?:CLIP|SHOT)\b/i;
 const CLIP_HEADER_REGEX = /^\s*(?:CLIP|SHOT)\s+(\d+)\s*\|\s*(.*?)\s*$/i;
 const DURATION_REGEX = /^(\d+(?:\.\d+)?)\s*s?$/i;
 
+/**
+ * @param {string} value
+ * @returns {string}
+ */
+function trimEdgeBlankLines(value) {
+  return value
+    .replace(/^(?:[ \t]*\n)+/, "")
+    .replace(/(?:\n[ \t]*)+$/, "");
+}
+
 class ShotScriptParseError extends Error {
   /**
    * @param {ShotScriptParseIssue[]} errors
@@ -84,9 +94,9 @@ function parseShotScriptDocument(text) {
     }
     const continuationPrompt = lines.slice(firstContentLine + 1, globalEnd).join("\n");
     if (inlineGlobalPrompt && continuationPrompt) {
-      globalPrompt = `${inlineGlobalPrompt}\n${continuationPrompt}`;
+      globalPrompt = trimEdgeBlankLines(`${inlineGlobalPrompt}\n${continuationPrompt}`);
     } else {
-      globalPrompt = inlineGlobalPrompt || continuationPrompt;
+      globalPrompt = trimEdgeBlankLines(inlineGlobalPrompt || continuationPrompt);
     }
     postGlobalLine = globalEnd;
   }
@@ -231,7 +241,7 @@ function parseShotScriptDocument(text) {
     return {
       shotNumber: header.shotNumber,
       duration: header.duration,
-      prompt: promptLines.join("\n"),
+      prompt: trimEdgeBlankLines(promptLines.join("\n")),
     };
   });
 

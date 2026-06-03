@@ -23,7 +23,7 @@ The Wright Flyer begins moving forward.`);
     {
       shotNumber: 1,
       duration: 3,
-      prompt: "Wide low-angle shot beside the launch rail.\n",
+      prompt: "Wide low-angle shot beside the launch rail.",
     },
     {
       shotNumber: 2,
@@ -40,7 +40,7 @@ test("parseShotScript still supports legacy global prompt block format", () => {
 SHOT 1 | 3s
 Wide low-angle shot beside the launch rail.`);
 
-  assert.equal(parsed.globalPrompt, "1903 Kitty Hawk. Historical realism.\n");
+  assert.equal(parsed.globalPrompt, "1903 Kitty Hawk. Historical realism.");
   assert.deepEqual(parsed.video, { width: undefined, height: undefined, totalDuration: undefined });
   assert.equal(parsed.shots.length, 1);
 });
@@ -111,6 +111,28 @@ First prompt.`);
 
   assert.deepEqual(parsed.video, { width: 1280, height: 720, totalDuration: 40.5 });
   assert.equal(parsed.shots.length, 1);
+});
+
+test("parseShotScriptDocument trims blank leading/trailing lines around parsed prompts", () => {
+  const parsed = parseShotScriptDocument(`GLOBAL:
+
+1903 Kitty Hawk. Historical realism.
+
+
+SHOT 1 | 3s
+
+First prompt.
+
+
+SHOT 2 | 2s
+
+Second prompt.
+
+`);
+
+  assert.equal(parsed.globalPrompt, "1903 Kitty Hawk. Historical realism.");
+  assert.equal(parsed.shots[0].prompt, "First prompt.");
+  assert.equal(parsed.shots[1].prompt, "Second prompt.");
 });
 
 test("parseShotScriptDocument parses VIDEO block without GLOBAL block", () => {
