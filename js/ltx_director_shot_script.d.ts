@@ -10,26 +10,45 @@ export interface ParsedVideoMetadata {
   totalDuration?: number;
 }
 
-export interface ParsedShotScriptDocument {
+export interface ParsedShotList {
   globalPrompt: string;
   video: ParsedVideoMetadata;
   shots: ParsedShot[];
+  warnings: string[];
 }
 
-export interface ShotScriptParseIssue {
+export interface ShotListParseIssue {
   line: number;
   message: string;
   declaration?: string;
 }
 
-export class ShotScriptParseError extends Error {
-  errors: ShotScriptParseIssue[];
-  constructor(errors: ShotScriptParseIssue[]);
+export class ShotListParseError extends Error {
+  errors: ShotListParseIssue[];
+  constructor(errors: ShotListParseIssue[]);
 }
 
+export function parseShotList(text: string): ParsedShotList;
+export function formatShotListParseErrors(errors: ShotListParseIssue[]): string;
+export function formatShotList(input: { globalPrompt?: string; video?: ParsedVideoMetadata; shots: ParsedShot[] }): string;
+export function exportTimelineToShotList(input: {
+  segments?: Array<{ start: number; length: number; prompt?: string }>;
+  globalPrompt?: string;
+  frameRate?: number;
+  video?: ParsedVideoMetadata;
+}): string;
+export function exportShotList(input: {
+  segments?: Array<{ start: number; length: number; prompt?: string }>;
+  globalPrompt?: string;
+  frameRate?: number;
+  video?: ParsedVideoMetadata;
+}): string;
+
+// Legacy aliases
+export class ShotScriptParseError extends ShotListParseError {}
 export function parseShotScript(text: string): ParsedShot[];
-export function parseShotScriptDocument(text: string): ParsedShotScriptDocument;
-export function formatShotScriptParseErrors(errors: ShotScriptParseIssue[]): string;
+export function parseShotScriptDocument(text: string): ParsedShotList;
+export function formatShotScriptParseErrors(errors: ShotListParseIssue[]): string;
 export function formatShotScript(input: { globalPrompt?: string; video?: ParsedVideoMetadata; shots: ParsedShot[] }): string;
 export function exportTimelineToShotScript(input: {
   segments?: Array<{ start: number; length: number; prompt?: string }>;
