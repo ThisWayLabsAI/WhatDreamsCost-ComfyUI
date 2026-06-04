@@ -167,7 +167,7 @@ const STYLES = `
     font-size: 11px;
     color: #c8c8c8;
   }
-  .pr-clip-length-input {
+  .pr-shot-length-input {
     width: 100px;
     background: #222;
     color: #e0e0e0;
@@ -1618,7 +1618,7 @@ class TimelineEditor {
     this.clipLengthInput.type = "number";
     this.clipLengthInput.min = "0";
     this.clipLengthInput.step = "0.01";
-    this.clipLengthInput.className = "pr-clip-length-input";
+    this.clipLengthInput.className = "pr-shot-length-input";
     this.clipLengthUnit = document.createElement("span");
     this.clipLengthUnit.textContent = "s";
     this.clipLengthRow.appendChild(this.clipLengthLabel);
@@ -2558,14 +2558,14 @@ class TimelineEditor {
   updateClipLengthLabel(seg = null) {
     if (!this.clipLengthLabel) return;
     if (!seg) {
-      this.clipLengthLabel.textContent = "Clip Length:";
+      this.clipLengthLabel.textContent = "Shot Length:";
       return;
     }
     const isAudio = this.timeline.audioSegments.some(s => s.id === seg.id);
     const selectedTrack = isAudio ? this.timeline.audioSegments : this.timeline.segments;
     const ordered = [...selectedTrack].sort((a, b) => a.start - b.start);
     const clipIndex = Math.max(1, ordered.findIndex(s => s.id === seg.id) + 1);
-    this.clipLengthLabel.textContent = `Clip #${clipIndex} Length:`;
+    this.clipLengthLabel.textContent = `Shot #${clipIndex} Length:`;
   }
 
   applyClipLengthChange(seg, rawVal, inFrames = false) {
@@ -2660,7 +2660,7 @@ class TimelineEditor {
       const clipNav = document.createElement("div");
       clipNav.className = "pr-prompt-modal-clip-nav";
       const clipLabel = document.createElement("span");
-      clipLabel.textContent = "Clip:";
+      clipLabel.textContent = "Shot:";
       const clipIndexInput = document.createElement("input");
       clipIndexInput.type = "number";
       clipIndexInput.min = "1";
@@ -2752,8 +2752,8 @@ class TimelineEditor {
     header.appendChild(headerRight);
     modal.appendChild(header);
 
-    let clipLengthInput = null;
-    let clipLengthUnit = null;
+    let shotLengthInput = null;
+    let shotLengthUnit = null;
     let imageContainer = null;
     let imagePrimaryBtn = null;
     let imageRemoveBtn = null;
@@ -2788,11 +2788,11 @@ class TimelineEditor {
       if (modalLastClipBtn) {
         modalLastClipBtn.disabled = clipIndex >= ordered.length;
       }
-      if (clipLengthUnit) {
+      if (shotLengthUnit) {
         const inFrames = this.displayModeWidget?.value === "frames";
-        clipLengthUnit.textContent = inFrames ? "frames" : "s";
+        shotLengthUnit.textContent = inFrames ? "frames" : "s";
         const displayVal = inFrames ? liveSeg.length : (liveSeg.length / this.getFrameRate());
-        clipLengthInput.value = inFrames ? `${Math.round(displayVal)}` : displayVal.toFixed(2);
+        shotLengthInput.value = inFrames ? `${Math.round(displayVal)}` : displayVal.toFixed(2);
       }
     };
     const refreshSegmentImageUi = () => {
@@ -2808,19 +2808,19 @@ class TimelineEditor {
     if (!isGlobal) {
       const metaRow = document.createElement("div");
       metaRow.className = "pr-prompt-modal-meta";
-      const clipLengthLabel = document.createElement("span");
-      clipLengthLabel.textContent = "Clip Length:";
-      clipLengthInput = document.createElement("input");
-      clipLengthInput.type = "number";
-      clipLengthInput.min = "0";
-      clipLengthInput.step = "0.01";
-      clipLengthInput.className = "pr-clip-length-input";
-      clipLengthUnit = document.createElement("span");
+      const shotLengthLabel = document.createElement("span");
+      shotLengthLabel.textContent = "Shot Length:";
+      shotLengthInput = document.createElement("input");
+      shotLengthInput.type = "number";
+      shotLengthInput.min = "0";
+      shotLengthInput.step = "0.01";
+      shotLengthInput.className = "pr-shot-length-input";
+      shotLengthUnit = document.createElement("span");
       const applyModalLength = () => {
         const liveSeg = getLiveSeg();
         if (!liveSeg) return;
         const inFrames = this.displayModeWidget?.value === "frames";
-        const rawVal = parseFloat(clipLengthInput.value);
+        const rawVal = parseFloat(shotLengthInput.value);
         if (!Number.isFinite(rawVal)) {
           refreshSegmentMeta();
           return;
@@ -2829,21 +2829,21 @@ class TimelineEditor {
         this.syncClipLengthInputFromSelection(liveSeg);
         refreshSegmentMeta();
       };
-      clipLengthInput.addEventListener("change", applyModalLength);
-      clipLengthInput.addEventListener("keydown", (e) => {
+      shotLengthInput.addEventListener("change", applyModalLength);
+      shotLengthInput.addEventListener("keydown", (e) => {
         if (e.key === "Enter") applyModalLength();
       });
-      clipLengthInput.addEventListener("blur", refreshSegmentMeta);
-      metaRow.appendChild(clipLengthLabel);
-      metaRow.appendChild(clipLengthInput);
-      metaRow.appendChild(clipLengthUnit);
+      shotLengthInput.addEventListener("blur", refreshSegmentMeta);
+      metaRow.appendChild(shotLengthLabel);
+      metaRow.appendChild(shotLengthInput);
+      metaRow.appendChild(shotLengthUnit);
       modal.appendChild(metaRow);
 
       imageContainer = document.createElement("div");
       imageContainer.className = "pr-prompt-modal-image";
       imagePreviewEl = document.createElement("img");
       imagePreviewEl.className = "pr-prompt-modal-image-preview";
-      imagePreviewEl.alt = "Clip keyframe";
+      imagePreviewEl.alt = "Shot keyframe";
       imageEmptyEl = document.createElement("div");
       imageEmptyEl.className = "pr-prompt-modal-image-empty";
       imageEmptyEl.textContent = "No keyframe image. Drag/Drop an Image, or click the add Image button";
@@ -4758,12 +4758,12 @@ class TimelineEditor {
       const convertBtn = document.createElement("button");
       convertBtn.className = "pr-gap-menu-btn";
       if (seg.type === "text") {
-        convertBtn.innerHTML = "Convert to Image+Prompt";
+        convertBtn.innerHTML = "Add Image & Convert to Image-Based";
         convertBtn.onclick = async () => {
           await this.convertSegmentToImage(seg);
         };
       } else {
-        convertBtn.innerHTML = "Convert to Prompt-Only";
+        convertBtn.innerHTML = "Remove Image & Convert to Prompt-Only";
         convertBtn.onclick = () => {
           seg.type = "text";
           delete seg.imageFile;
@@ -4839,7 +4839,7 @@ class TimelineEditor {
 
       const addBeforeBtn = document.createElement("button");
       addBeforeBtn.className = "pr-gap-menu-btn";
-      addBeforeBtn.innerHTML = "Add Clip Before";
+      addBeforeBtn.innerHTML = "Add Shot Before";
       addBeforeBtn.onclick = () => {
         this.insertClipAdjacent(seg, "before");
         this.dismissContextMenu();
@@ -4848,7 +4848,7 @@ class TimelineEditor {
 
       const addAfterBtn = document.createElement("button");
       addAfterBtn.className = "pr-gap-menu-btn";
-      addAfterBtn.innerHTML = "Add Clip After";
+      addAfterBtn.innerHTML = "Add Shot After";
       addAfterBtn.onclick = () => {
         this.insertClipAdjacent(seg, "after");
         this.dismissContextMenu();
