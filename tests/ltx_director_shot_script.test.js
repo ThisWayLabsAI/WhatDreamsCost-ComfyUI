@@ -163,7 +163,13 @@ Second prompt.`);
   assert.doesNotMatch(text, /\bCLIP\b/);
 });
 
-test("no remaining user-facing Clip Script labels in LTX Director UI", () => {
+test("no remaining user-facing Clip Script labels", () => {
   const uiSource = fs.readFileSync(require.resolve("../js/ltx_director.js"), "utf8");
+  const readmeSource = fs.readFileSync(require.resolve("../README.md"), "utf8");
   assert.doesNotMatch(uiSource, /Clip Script/i);
+  assert.match(uiSource, /Shot List \(View\/Import\/Export\)/);
+  assert.match(uiSource, /Import Shot List/);
+  assert.match(uiSource, /Export Shot List/);
+  assert.match(uiSource, /SHOT 1 \\| 3s/);
+  assert.doesNotMatch(readmeSource, /clip script/i);
 });

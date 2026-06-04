@@ -369,10 +369,26 @@ function formatVideoMetadata(video) {
 }
 
 // Legacy aliases for backward compatibility.
+/**
+ * @deprecated Use parseShotList for new code.
+ * Legacy alias keeps historical return shape (shots array only).
+ */
 const parseShotScript = (text) => parseShotList(text).shots;
+/**
+ * @deprecated Use parseShotList for new code.
+ */
 const parseShotScriptDocument = (text) => parseShotList(text);
+/**
+ * @deprecated Use formatShotListParseErrors for new code.
+ */
 const formatShotScriptParseErrors = (errors) => formatShotListParseErrors(errors);
+/**
+ * @deprecated Use formatShotList for new code.
+ */
 const formatShotScript = (input) => formatShotList(input);
+/**
+ * @deprecated Use exportTimelineToShotList for new code.
+ */
 const exportTimelineToShotScript = (input) => exportTimelineToShotList(input);
 const ShotScriptParseError = ShotListParseError;
 

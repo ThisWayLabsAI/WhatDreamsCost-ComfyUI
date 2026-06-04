@@ -17,6 +17,7 @@ const CLIP_INDEX_PROMPT_GAP = 6;
 const HIDDEN_WIDGET_NAMES = ["timeline_data", "local_prompts", "segment_lengths", "guide_strength", "audio_data", "use_custom_audio", "use_global_prompt", "global_prompt"];
 
 function getShotListApi() {
+  // TODO: remove LTXDirectorShotScript fallback after downstream integrations migrate.
   return window.LTXDirectorShotList || window.LTXDirectorShotScript || {};
 }
 
