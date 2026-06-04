@@ -46,7 +46,7 @@ This fork includes additional LTX Director UI/UX polish on top of the upstream r
 - Added Trim to Last Clip, Ripple Delete, and Ripple Delete Gaps timeline actions for faster cleanup.
 - Added clip conversion actions so you can switch between Image+Prompt and Prompt-Only clips without wiping an existing prompt when removing the image.
 - Added a prompt modal with direct clip number navigation, clip image drag/drop-replace-remove controls, and quick prompt copy/clear actions. Double-clicking the Global Prompt or Prompt input fields open the prompt modal.
-- Added clip script import/export. Example format: `GLOBAL: cinematic sunset skyline` then `CLIP 1 | 3s` with the clip prompt below.
+- Added Shot List import/export. Example format: `GLOBAL: cinematic sunset skyline` then `SHOT 1 | 3s` with the shot prompt below.
 - Added styled clip index badges to the timeline presentation
 
 **v1.3.9**
@@ -150,6 +150,7 @@ Overhaul of the load audio node. Features a simple interface to easily trim audi
 A Complete Timeline Editor For LTX 2.3. This is the sucessor of my previous nodes, and has loads of features in it. It was originally based off of [Kijai's Prompt Relay node](https://github.com/kijai/ComfyUI-PromptRelay) and my LTX Sequencer/Multi Image Loader nodes.
 
 **Main Features:**
+- **Shot List Support:** A Shot List is a text-based representation of an LTX Director timeline. Each shot maps to one generated timeline segment and can include optional global prompt context plus VIDEO settings like width, height, and total duration.
 - **Fully Functional Timeline Editor:** I spent hours studying various video editors and ended up with this design. If anyone has ideas for improvements let me know! I will adding documentation on all the functions soon.
 - **Prompt Relay integrated:** This unlocks the ability to have granular control over video generation. For more information on Prompt Relay go here, https://gordonchen19.github.io/Prompt-Relay/
 - **First, Middle, Last Frame Support:** This has by far the easiest method of creating first/last frames videos. It supports any number of keyframes, and will be the successor of my previous nodes.

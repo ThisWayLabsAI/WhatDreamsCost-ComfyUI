@@ -16,8 +16,8 @@ const CLIP_INDEX_PROMPT_GAP = 6;
 
 const HIDDEN_WIDGET_NAMES = ["timeline_data", "local_prompts", "segment_lengths", "guide_strength", "audio_data", "use_custom_audio", "use_global_prompt", "global_prompt"];
 
-function getShotScriptApi() {
-  return window.LTXDirectorShotScript || {};
+function getShotListApi() {
+  return window.LTXDirectorShotList || window.LTXDirectorShotScript || {};
 }
 
 function hideWidget(w) {
@@ -1130,7 +1130,7 @@ class TimelineEditor {
     cancelAnimationFrame(this._renderLoop);
     this.pauseAudio();
     this.closePromptEditorModal();
-    this.closeShotScriptImportModal();
+    this.closeShotListImportModal();
     window.removeEventListener("keydown", this.handleKeyDown, true);
     window.removeEventListener("paste", this.handlePaste, true);
   }
@@ -1370,10 +1370,10 @@ class TimelineEditor {
     addTextBtn.innerHTML = `${ICONS.text} Add Text`;
     addTextBtn.addEventListener("click", () => this.addTextSegmentFreeSpace());
 
-    const clipScriptModalBtn = document.createElement("button");
-    clipScriptModalBtn.className = "pr-btn";
-    clipScriptModalBtn.textContent = "Clip Script (View/Import/Export)";
-    clipScriptModalBtn.addEventListener("click", () => this.openShotScriptImportModal());
+    const shotListModalBtn = document.createElement("button");
+    shotListModalBtn.className = "pr-btn";
+    shotListModalBtn.textContent = "Shot List (View/Import/Export)";
+    shotListModalBtn.addEventListener("click", () => this.openShotListImportModal());
 
     const deleteBtn = document.createElement("button");
     deleteBtn.className = "pr-btn pr-btn-danger";
@@ -1410,7 +1410,7 @@ class TimelineEditor {
     actionGroup.appendChild(uploadBtn);
     actionGroup.appendChild(addTextBtn);
     actionGroup.appendChild(uploadAudioBtn);
-    actionGroup.appendChild(clipScriptModalBtn);
+    actionGroup.appendChild(shotListModalBtn);
     toolbar.appendChild(actionGroup);
 
     const rightGroup = document.createElement("div");
@@ -2993,17 +2993,17 @@ class TimelineEditor {
     }
   }
 
-  openShotScriptImportModal() {
-    this.openShotScriptModal("import");
+  openShotListImportModal() {
+    this.openShotListModal("import");
   }
 
-  openShotScriptExportModal() {
-    this.openShotScriptModal("export");
+  openShotListExportModal() {
+    this.openShotListModal("export");
   }
 
-  openShotScriptModal(initialMode = "import") {
-    this.closeShotScriptImportModal();
-    const { ShotScriptParseError, formatShotScriptParseErrors } = getShotScriptApi();
+  openShotListModal(initialMode = "import") {
+    this.closeShotListImportModal();
+    const { ShotListParseError, formatShotListParseErrors } = getShotListApi();
 
     const backdrop = document.createElement("div");
     backdrop.className = "pr-prompt-modal-backdrop";
@@ -3015,18 +3015,18 @@ class TimelineEditor {
     toolbar.className = "pr-shot-script-toolbar";
 
     const title = document.createElement("div");
-    title.textContent = "Clip Script";
+    title.textContent = "Shot List";
 
     const actions = document.createElement("div");
     actions.className = "pr-shot-script-actions";
 
     const modeImportBtn = document.createElement("button");
     modeImportBtn.className = "pr-mini-btn";
-    modeImportBtn.textContent = "Import Mode";
+    modeImportBtn.textContent = "Import Shot List";
 
     const modeExportBtn = document.createElement("button");
     modeExportBtn.className = "pr-mini-btn";
-    modeExportBtn.textContent = "Export Mode";
+    modeExportBtn.textContent = "Export Shot List";
 
     const fileInput = document.createElement("input");
     fileInput.type = "file";
@@ -3057,7 +3057,7 @@ class TimelineEditor {
     const closeBtn = document.createElement("button");
     closeBtn.className = "pr-mini-btn";
     closeBtn.textContent = "Close";
-    closeBtn.addEventListener("click", () => this.closeShotScriptImportModal());
+    closeBtn.addEventListener("click", () => this.closeShotListImportModal());
 
     actions.appendChild(modeImportBtn);
     actions.appendChild(modeExportBtn);
@@ -3072,8 +3072,8 @@ class TimelineEditor {
 
     const hint = document.createElement("div");
     hint.className = "pr-shot-script-hint";
-    const importHint = "Paste a script with optional GLOBAL and optional VIDEO metadata blocks before required CLIP blocks. Import replaces the current clip timeline, preserves audio, and recalculates clip timing cumulatively.";
-    const exportHint = "Review the generated script before exporting it to a .txt file.";
+    const importHint = "Paste a script with optional GLOBAL and optional VIDEO metadata blocks before required SHOT blocks. Import replaces the current timeline shots, preserves audio, and recalculates shot timing cumulatively.";
+    const exportHint = "Review the generated shot list before exporting it to a .txt file.";
     hint.textContent = importHint;
 
     const errorBox = document.createElement("div");
@@ -3092,7 +3092,7 @@ class TimelineEditor {
 
     const textarea = document.createElement("textarea");
     textarea.className = "pr-shot-script-textarea";
-    textarea.placeholder = "GLOBAL: Describe global prompt here.\n\nVIDEO:\nwidth: 1280\nheight: 720\ntotal_duration: 40\n\nCLIP 1 | 3s\nDescribe clip 1 here.\n\nCLIP 2 | 2.5s\nDescribe clip 2 here.";
+    textarea.placeholder = "GLOBAL: Describe global prompt here.\n\nVIDEO:\nwidth: 1280\nheight: 720\ntotal_duration: 40\n\nSHOT 1 | 3s\nDescribe shot 1 here.\n\nSHOT 2 | 2.5s\nDescribe shot 2 here.";
 
     let showApplyAnywayAction = false;
     const setError = (message = "", kind = "error", options = {}) => {
@@ -3112,10 +3112,10 @@ class TimelineEditor {
     const setMode = (nextMode) => {
       mode = nextMode === "export" ? "export" : "import";
       const isImport = mode === "import";
-      title.textContent = isImport ? "Import Clip Script" : "Export Clip Script";
+      title.textContent = isImport ? "Import Shot List" : "Export Shot List";
       hint.textContent = isImport ? importHint : exportHint;
       textarea.readOnly = !isImport;
-      textarea.placeholder = isImport ? "GLOBAL: Describe global prompt here.\n\nVIDEO:\nwidth: 1280\nheight: 720\ntotal_duration: 40\n\nCLIP 1 | 3s\nDescribe clip 1 here.\n\nCLIP 2 | 2.5s\nDescribe clip 2 here." : "";
+      textarea.placeholder = isImport ? "GLOBAL: Describe global prompt here.\n\nVIDEO:\nwidth: 1280\nheight: 720\ntotal_duration: 40\n\nSHOT 1 | 3s\nDescribe shot 1 here.\n\nSHOT 2 | 2.5s\nDescribe shot 2 here." : "";
       loadFileBtn.style.display = isImport ? "" : "none";
       clearTextBtn.style.display = isImport ? "" : "none";
       importBtn.style.display = isImport ? "" : "none";
@@ -3125,11 +3125,11 @@ class TimelineEditor {
       setModeButtonState(modeExportBtn, !isImport);
       if (!isImport) {
         try {
-          textarea.value = this.buildShotScriptText();
+          textarea.value = this.buildShotListText();
           setError("", "error");
         } catch (err) {
-          console.error("[LTXDirector] Clip script export preview failed", err);
-          setError("Unable to generate clip script preview.", "error");
+          console.error("[LTXDirector] Shot list export preview failed", err);
+          setError("Unable to generate shot list preview.", "error");
         }
       }
     };
@@ -3142,7 +3142,7 @@ class TimelineEditor {
         textarea.value = await file.text();
         setError("", "error");
       } catch (err) {
-        console.error("[LTXDirector] Failed to read clip script file", err);
+        console.error("[LTXDirector] Failed to read shot list file", err);
         setError("Unable to read the selected file.", "error");
       }
     });
@@ -3161,18 +3161,18 @@ class TimelineEditor {
 
     importBtn.addEventListener("click", () => {
       try {
-        const importResult = this.importShotScript(textarea.value);
+        const importResult = this.importShotList(textarea.value);
         if (importResult.warningCode === "video_duration_mismatch") {
           setError(`Warning: ${importResult.message}`, "warning", { showApplyAnyway: true });
           return;
         }
-        this.closeShotScriptImportModal();
+        this.closeShotListImportModal();
       } catch (err) {
-        if (ShotScriptParseError && err instanceof ShotScriptParseError) {
-          setError(formatShotScriptParseErrors(err.errors), "error");
+        if (ShotListParseError && err instanceof ShotListParseError) {
+          setError(formatShotListParseErrors(err.errors), "error");
           return;
         }
-        console.error("[LTXDirector] Clip script import failed", err);
+        console.error("[LTXDirector] Shot list import failed", err);
         setError("Import failed. Check the browser console for details.", "error");
       }
     });
@@ -3180,14 +3180,14 @@ class TimelineEditor {
     applyAnywayBtn.addEventListener("click", () => {
       if (!showApplyAnywayAction) return;
       try {
-        this.importShotScript(textarea.value, { ignoreVideoDurationMismatch: true });
-        this.closeShotScriptImportModal();
+        this.importShotList(textarea.value, { ignoreVideoDurationMismatch: true });
+        this.closeShotListImportModal();
       } catch (err) {
-        if (ShotScriptParseError && err instanceof ShotScriptParseError) {
-          setError(formatShotScriptParseErrors(err.errors), "error");
+        if (ShotListParseError && err instanceof ShotListParseError) {
+          setError(formatShotListParseErrors(err.errors), "error");
           return;
         }
-        console.error("[LTXDirector] Clip script import failed", err);
+        console.error("[LTXDirector] Shot list import failed", err);
         setError("Import failed. Check the browser console for details.", "error");
       }
     });
@@ -3197,7 +3197,7 @@ class TimelineEditor {
         setError("Nothing to export.", "error");
         return;
       }
-      this.exportShotScript(textarea.value);
+      this.exportShotList(textarea.value);
       setError("", "error");
     });
 
@@ -3218,13 +3218,13 @@ class TimelineEditor {
     modeExportBtn.addEventListener("click", () => setMode("export"));
 
     backdrop.addEventListener("mousedown", (event) => {
-      if (event.target === backdrop) this.closeShotScriptImportModal();
+      if (event.target === backdrop) this.closeShotListImportModal();
     });
 
-    this._shotScriptEscHandler = (event) => {
-      if (event.key === "Escape") this.closeShotScriptImportModal();
+    this._shotListEscHandler = (event) => {
+      if (event.key === "Escape") this.closeShotListImportModal();
     };
-    document.addEventListener("keydown", this._shotScriptEscHandler);
+    document.addEventListener("keydown", this._shotListEscHandler);
 
     modal.appendChild(toolbar);
     modal.appendChild(hint);
@@ -3233,43 +3233,39 @@ class TimelineEditor {
     modal.appendChild(fileInput);
     backdrop.appendChild(modal);
     document.body.appendChild(backdrop);
-    this._shotScriptModalEl = backdrop;
+    this._shotListModalEl = backdrop;
     setMode(initialMode);
     textarea.focus();
   }
 
-  closeShotScriptImportModal() {
-    if (this._shotScriptModalEl) {
-      this._shotScriptModalEl.remove();
-      this._shotScriptModalEl = null;
+  closeShotListImportModal() {
+    if (this._shotListModalEl) {
+      this._shotListModalEl.remove();
+      this._shotListModalEl = null;
     }
-    if (this._shotScriptEscHandler) {
-      document.removeEventListener("keydown", this._shotScriptEscHandler);
-      this._shotScriptEscHandler = null;
+    if (this._shotListEscHandler) {
+      document.removeEventListener("keydown", this._shotListEscHandler);
+      this._shotListEscHandler = null;
     }
   }
 
-  importShotScript(text, options = {}) {
-    const { parseShotScriptDocument } = getShotScriptApi();
-    if (!parseShotScriptDocument) {
-      throw new Error("Clip script parser is unavailable.");
+  importShotList(text, options = {}) {
+    const { parseShotList } = getShotListApi();
+    if (!parseShotList) {
+      throw new Error("Shot list parser is unavailable.");
     }
-    const parsed = parseShotScriptDocument(text);
-    const shotDurationTotal = parsed.shots.reduce((sum, shot) => sum + shot.duration, 0);
-    const metadataDuration = parsed.video?.totalDuration;
+    const parsed = parseShotList(text);
     const ignoreVideoDurationMismatch = options.ignoreVideoDurationMismatch === true;
-    if (Number.isFinite(metadataDuration) && metadataDuration > 0) {
-      const delta = Math.abs(metadataDuration - shotDurationTotal);
-      if (delta > 0.001 && !ignoreVideoDurationMismatch) {
-        return {
-          warningCode: "video_duration_mismatch",
-          message: `VIDEO total_duration (${metadataDuration}s) does not match total CLIP duration (${Number(shotDurationTotal.toFixed(3))}s).`,
-        };
-      }
+    const durationMismatchWarning = parsed.warnings?.find((warning) => warning.includes("VIDEO total_duration"));
+    if (durationMismatchWarning && !ignoreVideoDurationMismatch) {
+      return {
+        warningCode: "video_duration_mismatch",
+        message: durationMismatchWarning,
+      };
     }
     const frameRate = this.getFrameRate();
     let cursorFrames = 0;
-    const importedSegments = parsed.shots.map((shot) => {
+    const importedTimelineSegments = parsed.shots.map((shot) => {
       const length = Math.max(1, Math.round(shot.duration * frameRate));
       const segment = {
         id: `${Date.now()}${Math.random().toString(36).substr(2, 5)}`,
@@ -3282,9 +3278,9 @@ class TimelineEditor {
       return segment;
     });
 
-    this.timeline.segments = importedSegments;
+    this.timeline.segments = importedTimelineSegments;
     this.selectionType = "image";
-    this.selectedIndex = importedSegments.length > 0 ? 0 : -1;
+    this.selectedIndex = importedTimelineSegments.length > 0 ? 0 : -1;
 
     if (this.globalPromptWidget) {
       this.globalPromptWidget.value = parsed.globalPrompt;
@@ -3319,8 +3315,8 @@ class TimelineEditor {
       this.useGlobalPromptCheckbox.checked = hasGlobalPrompt;
     }
 
-    const importedEnd = importedSegments.length > 0
-      ? importedSegments[importedSegments.length - 1].start + importedSegments[importedSegments.length - 1].length
+    const importedEnd = importedTimelineSegments.length > 0
+      ? importedTimelineSegments[importedTimelineSegments.length - 1].start + importedTimelineSegments[importedTimelineSegments.length - 1].length
       : 0;
     const audioEnd = Math.max(0, ...this.timeline.audioSegments.map((segment) => segment.start + segment.length));
     this.setDurationFramesValue(Math.max(1, importedEnd, audioEnd));
@@ -3332,12 +3328,12 @@ class TimelineEditor {
     };
   }
 
-  buildShotScriptText() {
-    const { exportTimelineToShotScript } = getShotScriptApi();
-    if (!exportTimelineToShotScript) {
-      throw new Error("Clip script exporter is unavailable.");
+  buildShotListText() {
+    const { exportShotList } = getShotListApi();
+    if (!exportShotList) {
+      throw new Error("Shot list exporter is unavailable.");
     }
-    return exportTimelineToShotScript({
+    return exportShotList({
       globalPrompt: this.globalPromptWidget?.value || "",
       segments: this.timeline.segments,
       frameRate: this.getFrameRate(),
@@ -3349,14 +3345,14 @@ class TimelineEditor {
     });
   }
 
-  exportShotScript(text = null) {
-    const exportText = typeof text === "string" ? text : this.buildShotScriptText();
+  exportShotList(text = null) {
+    const exportText = typeof text === "string" ? text : this.buildShotListText();
     if (!exportText) return;
     const blob = new Blob([exportText], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = "ltx-director-clip-script.txt";
+    link.download = "ltx-director-shot-list.txt";
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 0);
   }

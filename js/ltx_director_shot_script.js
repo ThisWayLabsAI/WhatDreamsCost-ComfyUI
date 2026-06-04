@@ -8,17 +8,10 @@
  */
 
 /**
- * @typedef {Object} ShotScriptParseIssue
+ * @typedef {Object} ShotListParseIssue
  * @property {number} line
  * @property {string} message
  * @property {string} [declaration]
- */
-
-/**
- * @typedef {Object} ParsedShotScriptDocument
- * @property {string} globalPrompt
- * @property {ParsedVideoMetadata} video
- * @property {ParsedShot[]} shots
  */
 
 /**
@@ -28,11 +21,19 @@
  * @property {number | undefined} totalDuration
  */
 
+/**
+ * @typedef {Object} ParsedShotList
+ * @property {string} globalPrompt
+ * @property {ParsedVideoMetadata} video
+ * @property {ParsedShot[]} shots
+ * @property {string[]} warnings
+ */
+
 const GLOBAL_HEADER_REGEX = /^\s*GLOBAL:\s*(.*)$/i;
 const VIDEO_HEADER_REGEX = /^\s*VIDEO:\s*$/i;
 const VIDEO_PROPERTY_REGEX = /^\s*([a-z_]+)\s*:\s*(.*?)\s*$/i;
-const CLIP_LINE_REGEX = /^\s*(?:CLIP|SHOT)\b/i;
-const CLIP_HEADER_REGEX = /^\s*(?:CLIP|SHOT)\s+(\d+)\s*\|\s*(.*?)\s*$/i;
+const SHOT_LINE_REGEX = /^\s*(?:CLIP|SHOT)\b/i;
+const SHOT_HEADER_REGEX = /^\s*(?:CLIP|SHOT)\s+(\d+)\s*\|\s*(.*?)\s*$/i;
 const DURATION_REGEX = /^(\d+(?:\.\d+)?)\s*s?$/i;
 
 /**
@@ -45,32 +46,25 @@ function trimEdgeBlankLines(value) {
     .replace(/(?:\n[ \t]*)+$/, "");
 }
 
-class ShotScriptParseError extends Error {
+class ShotListParseError extends Error {
   /**
-   * @param {ShotScriptParseIssue[]} errors
+   * @param {ShotListParseIssue[]} errors
    */
   constructor(errors) {
-    super(formatShotScriptParseErrors(errors));
-    this.name = "ShotScriptParseError";
+    super(formatShotListParseErrors(errors));
+    this.name = "ShotListParseError";
     this.errors = errors;
   }
 }
 
 /**
  * @param {string} text
- * @returns {ParsedShot[]}
+ * @returns {ParsedShotList}
  */
-function parseShotScript(text) {
-  return parseShotScriptDocument(text).shots;
-}
-
-/**
- * @param {string} text
- * @returns {ParsedShotScriptDocument}
- */
-function parseShotScriptDocument(text) {
+function parseShotList(text) {
   const normalized = normalizeLineEndings(text);
   const lines = normalized.split("\n");
+  /** @type {ShotListParseIssue[]} */
   const errors = [];
   const headers = [];
 
@@ -78,7 +72,7 @@ function parseShotScriptDocument(text) {
   let globalPrompt = "";
   /** @type {ParsedVideoMetadata} */
   const video = { width: undefined, height: undefined, totalDuration: undefined };
-  const firstShotLine = lines.findIndex((line) => CLIP_LINE_REGEX.test(line));
+  const firstShotLine = lines.findIndex((line) => SHOT_LINE_REGEX.test(line));
   const preShotEnd = firstShotLine === -1 ? lines.length : firstShotLine;
   let postGlobalLine = firstContentLine;
 
@@ -87,7 +81,7 @@ function parseShotScriptDocument(text) {
     const inlineGlobalPrompt = globalHeaderMatch ? globalHeaderMatch[1] : "";
     let globalEnd = preShotEnd;
     for (let i = firstContentLine + 1; i < lines.length; i++) {
-      if (CLIP_LINE_REGEX.test(lines[i]) || VIDEO_HEADER_REGEX.test(lines[i])) {
+      if (SHOT_LINE_REGEX.test(lines[i]) || VIDEO_HEADER_REGEX.test(lines[i])) {
         globalEnd = i;
         break;
       }
@@ -168,14 +162,14 @@ function parseShotScriptDocument(text) {
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    if (!CLIP_LINE_REGEX.test(line)) continue;
+    if (!SHOT_LINE_REGEX.test(line)) continue;
 
-    const headerMatch = line.match(CLIP_HEADER_REGEX);
+    const headerMatch = line.match(SHOT_HEADER_REGEX);
     if (!headerMatch) {
       const missingDuration = /^\s*(?:CLIP|SHOT)\s+\d+\s*(?:\|\s*)?$/i.test(line);
       errors.push({
         line: i + 1,
-        message: missingDuration ? "Missing duration:" : "Invalid clip declaration:",
+        message: missingDuration ? "Missing duration:" : "Invalid shot declaration:",
         declaration: line,
       });
       continue;
@@ -198,7 +192,7 @@ function parseShotScriptDocument(text) {
     if (!Number.isFinite(duration) || duration <= 0) {
       errors.push({
         line: i + 1,
-        message: "Invalid clip declaration:",
+        message: "Invalid shot declaration:",
         declaration: line,
       });
       continue;
@@ -215,7 +209,7 @@ function parseShotScriptDocument(text) {
   if (headers.length === 0) {
     errors.push({
       line: 1,
-      message: "No CLIP or SHOT blocks found.",
+      message: "No SHOT or CLIP blocks found.",
     });
   }
 
@@ -224,7 +218,7 @@ function parseShotScriptDocument(text) {
     if (seenShotNumbers.has(header.shotNumber)) {
       errors.push({
         line: header.line,
-        message: `Duplicate clip number: ${header.shotNumber}`,
+        message: `Duplicate shot number: ${header.shotNumber}`,
       });
       continue;
     }
@@ -232,7 +226,7 @@ function parseShotScriptDocument(text) {
   }
 
   if (errors.length > 0) {
-    throw new ShotScriptParseError(errors);
+    throw new ShotListParseError(errors);
   }
 
   const shots = headers.map((header, index) => {
@@ -245,14 +239,23 @@ function parseShotScriptDocument(text) {
     };
   });
 
-  return { globalPrompt, video, shots };
+  const warnings = [];
+  const shotDurationTotal = shots.reduce((sum, shot) => sum + shot.duration, 0);
+  const metadataDuration = Number(video.totalDuration);
+  if (Number.isFinite(metadataDuration) && metadataDuration > 0) {
+    const delta = Math.abs(metadataDuration - shotDurationTotal);
+    if (delta > 0.001) {
+      warnings.push(`VIDEO total_duration (${metadataDuration}s) does not match total SHOT duration (${Number(shotDurationTotal.toFixed(3))}s).`);
+    }
+  }
+  return { globalPrompt, video, shots, warnings };
 }
 
 /**
- * @param {ShotScriptParseIssue[]} errors
+ * @param {ShotListParseIssue[]} errors
  * @returns {string}
  */
-function formatShotScriptParseErrors(errors) {
+function formatShotListParseErrors(errors) {
   return errors.map((error) => {
     if (error.declaration) {
       return `Line ${error.line}:\n${error.message}\n${error.declaration}`;
@@ -265,7 +268,7 @@ function formatShotScriptParseErrors(errors) {
  * @param {{ globalPrompt?: string, video?: ParsedVideoMetadata, shots: ParsedShot[] }} input
  * @returns {string}
  */
-function formatShotScript(input) {
+function formatShotList(input) {
   const sections = [];
   const globalPrompt = trimEdgeBlankLines(normalizeLineEndings(input.globalPrompt ?? ""));
   if (globalPrompt) {
@@ -279,8 +282,8 @@ function formatShotScript(input) {
   for (const shot of input.shots) {
     const prompt = trimEdgeBlankLines(normalizeLineEndings(shot.prompt ?? ""));
     sections.push(prompt
-      ? `CLIP ${shot.shotNumber} | ${formatDurationSeconds(shot.duration)}s\n${prompt}`
-      : `CLIP ${shot.shotNumber} | ${formatDurationSeconds(shot.duration)}s`);
+      ? `SHOT ${shot.shotNumber} | ${formatDurationSeconds(shot.duration)}s\n${prompt}`
+      : `SHOT ${shot.shotNumber} | ${formatDurationSeconds(shot.duration)}s`);
   }
 
   return sections.join("\n\n");
@@ -290,7 +293,7 @@ function formatShotScript(input) {
  * @param {{ segments?: Array<{ start: number, length: number, prompt?: string }>, globalPrompt?: string, frameRate?: number, video?: ParsedVideoMetadata }} input
  * @returns {string}
  */
-function exportTimelineToShotScript(input) {
+function exportTimelineToShotList(input) {
   const frameRate = Number.isFinite(input.frameRate) && input.frameRate > 0 ? input.frameRate : 24;
   const segments = [...(input.segments || [])].sort((a, b) => a.start - b.start);
   const shots = segments.map((segment, index) => ({
@@ -307,11 +310,19 @@ function exportTimelineToShotScript(input) {
       ? parsedVideoTotalDuration
       : calculatedTotalDuration,
   };
-  return formatShotScript({
+  return formatShotList({
     globalPrompt: input.globalPrompt || "",
     video,
     shots,
   });
+}
+
+/**
+ * @param {{ segments?: Array<{ start: number, length: number, prompt?: string }>, globalPrompt?: string, frameRate?: number, video?: ParsedVideoMetadata }} input
+ * @returns {string}
+ */
+function exportShotList(input) {
+  return exportTimelineToShotList(input);
 }
 
 /**
@@ -357,7 +368,22 @@ function formatVideoMetadata(video) {
   return `VIDEO:\n${lines.join("\n")}`;
 }
 
-const shotScriptApi = {
+// Legacy aliases for backward compatibility.
+const parseShotScript = (text) => parseShotList(text).shots;
+const parseShotScriptDocument = (text) => parseShotList(text);
+const formatShotScriptParseErrors = (errors) => formatShotListParseErrors(errors);
+const formatShotScript = (input) => formatShotList(input);
+const exportTimelineToShotScript = (input) => exportTimelineToShotList(input);
+const ShotScriptParseError = ShotListParseError;
+
+const shotListApi = {
+  ShotListParseError,
+  exportShotList,
+  exportTimelineToShotList,
+  formatShotList,
+  formatShotListParseErrors,
+  parseShotList,
+  // Legacy exports
   ShotScriptParseError,
   exportTimelineToShotScript,
   formatShotScript,
@@ -367,9 +393,10 @@ const shotScriptApi = {
 };
 
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = shotScriptApi;
+  module.exports = shotListApi;
 }
 
 if (typeof globalThis !== "undefined") {
-  globalThis.LTXDirectorShotScript = shotScriptApi;
+  globalThis.LTXDirectorShotList = shotListApi;
+  globalThis.LTXDirectorShotScript = shotListApi;
 }
