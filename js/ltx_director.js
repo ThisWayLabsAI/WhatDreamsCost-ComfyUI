@@ -723,7 +723,7 @@ const STYLES = `
   .pr-global-prompt-input {
     width: 100%;
     min-height: 72px;
-    max-height: 220px;
+    max-height: 110px;
     background: #222;
     color: #e0e0e0;
     border: 1px solid #111;
@@ -4327,6 +4327,7 @@ class TimelineEditor {
       const deltaX = e.clientX - this._startX;
 
       this.node.size[0] = Math.max(300, this._startNodeWidth + deltaX);
+      this.node._ltxDirectorPreferredWidth = this.node.size[0];
 
       if (window.app && window.app.graph) {
         window.app.graph.setDirtyCanvas(true, true);
@@ -5662,6 +5663,29 @@ app.registerExtension({
 
         // Set default width to be wider on creation (approx 2.5x default ~220px)
         this.size[0] = 1000;
+        this._ltxDirectorPreferredWidth = this.size[0];
+
+        if (!this._ltxDirectorWidthGuardInstalled) {
+          this._ltxDirectorWidthGuardInstalled = true;
+          const origComputeSize = this.computeSize;
+          this.computeSize = function () {
+            const computed = origComputeSize ? origComputeSize.apply(this, arguments) : [this.size?.[0] || 0, this.size?.[1] || 0];
+            const guarded = Array.isArray(computed) ? computed : [this.size?.[0] || 0, this.size?.[1] || 0];
+            const preferredWidth = this._ltxDirectorPreferredWidth || this.size?.[0] || 300;
+            guarded[0] = Math.max(300, guarded[0] || 0, preferredWidth);
+            return guarded;
+          };
+
+          const origOnResize = this.onResize;
+          this.onResize = function (size) {
+            if (Array.isArray(size) && Number.isFinite(size[0]) && size[0] > 0) {
+              this._ltxDirectorPreferredWidth = Math.max(300, size[0]);
+            } else if (Array.isArray(this.size) && Number.isFinite(this.size[0]) && this.size[0] > 0) {
+              this._ltxDirectorPreferredWidth = Math.max(300, this.size[0]);
+            }
+            return origOnResize?.apply(this, arguments);
+          };
+        }
 
         // Force default for img_compression if not set (ComfyUI sometimes skips optional defaults)
         const compWidget = this.widgets?.find(w => w.name === "img_compression");
