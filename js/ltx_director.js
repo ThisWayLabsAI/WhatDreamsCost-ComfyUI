@@ -4134,6 +4134,7 @@ class TimelineEditor {
       this._dragType = "width_resize";
       this._startNodeWidth = this.node.size[0];
       this._startX = e.clientX;
+      this._widthResizeActive = false;
       document.body.style.userSelect = "none";
       return;
     }
@@ -4325,6 +4326,11 @@ class TimelineEditor {
     if (this._dragType === "width_resize") {
       this.canvas.style.cursor = "ew-resize";
       const deltaX = e.clientX - this._startX;
+
+      // Require a minimum drag of 8px before actually resizing, to prevent
+      // accidental width reduction from natural click-wobble near the right edge.
+      if (!this._widthResizeActive && Math.abs(deltaX) < 8) return;
+      this._widthResizeActive = true;
 
       this.node.size[0] = Math.max(300, this._startNodeWidth + deltaX);
       this.node._ltxDirectorPreferredWidth = this.node.size[0];
@@ -5089,18 +5095,6 @@ class TimelineEditor {
       }
     }
     this.updateWidgetVisibility();
-
-    // Workaround: toggle display mode to force ComfyUI to refresh the node
-    if (this.displayModeWidget) {
-      const origVal = this.displayModeWidget.value;
-      const otherVal = origVal === "frames" ? "seconds" : "frames";
-
-      this.displayModeWidget.value = otherVal;
-      if (this.displayModeWidget.callback) this.displayModeWidget.callback(otherVal);
-
-      this.displayModeWidget.value = origVal;
-      if (this.displayModeWidget.callback) this.displayModeWidget.callback(origVal);
-    }
   }
 
   // Restore all settings widgets on the node.
@@ -5120,18 +5114,6 @@ class TimelineEditor {
       if (w.element) w.element.style.display = "";
     }
     this.updateWidgetVisibility();
-
-    // Workaround: toggle display mode to force ComfyUI to refresh the node
-    if (this.displayModeWidget) {
-      const origVal = this.displayModeWidget.value;
-      const otherVal = origVal === "frames" ? "seconds" : "frames";
-
-      this.displayModeWidget.value = otherVal;
-      if (this.displayModeWidget.callback) this.displayModeWidget.callback(otherVal);
-
-      this.displayModeWidget.value = origVal;
-      if (this.displayModeWidget.callback) this.displayModeWidget.callback(origVal);
-    }
   }
 
   _makeSettingRow(label, inputEl) {
@@ -5665,28 +5647,6 @@ app.registerExtension({
         this.size[0] = 1000;
         this._ltxDirectorPreferredWidth = this.size[0];
 
-        if (!this._ltxDirectorWidthGuardInstalled) {
-          this._ltxDirectorWidthGuardInstalled = true;
-          const origComputeSize = this.computeSize;
-          this.computeSize = function () {
-            const computed = origComputeSize ? origComputeSize.apply(this, arguments) : [this.size?.[0] || 0, this.size?.[1] || 0];
-            const guarded = Array.isArray(computed) ? computed : [this.size?.[0] || 0, this.size?.[1] || 0];
-            const preferredWidth = this._ltxDirectorPreferredWidth || this.size?.[0] || 300;
-            guarded[0] = Math.max(300, guarded[0] || 0, preferredWidth);
-            return guarded;
-          };
-
-          const origOnResize = this.onResize;
-          this.onResize = function (size) {
-            if (Array.isArray(size) && Number.isFinite(size[0]) && size[0] > 0) {
-              this._ltxDirectorPreferredWidth = Math.max(300, size[0]);
-            } else if (Array.isArray(this.size) && Number.isFinite(this.size[0]) && this.size[0] > 0) {
-              this._ltxDirectorPreferredWidth = Math.max(300, this.size[0]);
-            }
-            return origOnResize?.apply(this, arguments);
-          };
-        }
-
         // Force default for img_compression if not set (ComfyUI sometimes skips optional defaults)
         const compWidget = this.widgets?.find(w => w.name === "img_compression");
         if (compWidget && (compWidget.value === undefined || compWidget.value === null || compWidget.value === 0)) {
@@ -5708,6 +5668,46 @@ app.registerExtension({
           }
           return [width, canvasH + 320];
         };
+
+        // Install width guards AFTER addDOMWidget so our overrides wrap any ComfyUI overrides
+        // installed by addDOMWidget (which may return [passedWidth, height] and discard our guard).
+        if (!this._ltxDirectorWidthGuardInstalled) {
+          this._ltxDirectorWidthGuardInstalled = true;
+
+          // computeSize guard: prevent LiteGraph from computing a width smaller than preferred.
+          const origComputeSize = this.computeSize;
+          this.computeSize = function () {
+            const computed = origComputeSize ? origComputeSize.apply(this, arguments) : [this.size?.[0] || 0, this.size?.[1] || 0];
+            const guarded = Array.isArray(computed) ? computed : [this.size?.[0] || 0, this.size?.[1] || 0];
+            const preferredWidth = this._ltxDirectorPreferredWidth || this.size?.[0] || 300;
+            guarded[0] = Math.max(300, guarded[0] || 0, preferredWidth);
+            return guarded;
+          };
+
+          // setSize guard: the primary defence. ComfyUI calls node.setSize() after any interaction
+          // (focus, click, widget change) with the result of its own internal size computation,
+          // which may be far smaller than the user's desired width. This intercepts ALL such calls
+          // and clamps the width to _ltxDirectorPreferredWidth before propagating.
+          const origSetSize = this.setSize;
+          this.setSize = function (size) {
+            if (Array.isArray(size) && size[0] != null) {
+              const preferred = this._ltxDirectorPreferredWidth || 300;
+              if (size[0] < preferred) size[0] = preferred;
+            }
+            if (origSetSize) return origSetSize.call(this, size);
+            else this.size = size;
+          };
+
+          const origOnResize = this.onResize;
+          this.onResize = function (size) {
+            if (Array.isArray(size) && Number.isFinite(size[0]) && size[0] > 0) {
+              this._ltxDirectorPreferredWidth = Math.max(300, size[0]);
+            } else if (Array.isArray(this.size) && Number.isFinite(this.size[0]) && this.size[0] > 0) {
+              this._ltxDirectorPreferredWidth = Math.max(300, this.size[0]);
+            }
+            return origOnResize?.apply(this, arguments);
+          };
+        }
 
         setTimeout(() => {
           try {
