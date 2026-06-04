@@ -4134,6 +4134,7 @@ class TimelineEditor {
       this._dragType = "width_resize";
       this._startNodeWidth = this.node.size[0];
       this._startX = e.clientX;
+      this._widthResizeActive = false;
       document.body.style.userSelect = "none";
       return;
     }
@@ -4325,6 +4326,11 @@ class TimelineEditor {
     if (this._dragType === "width_resize") {
       this.canvas.style.cursor = "ew-resize";
       const deltaX = e.clientX - this._startX;
+
+      // Require a minimum drag of 8px before actually resizing, to prevent
+      // accidental width reduction from natural click-wobble near the right edge.
+      if (!this._widthResizeActive && Math.abs(deltaX) < 8) return;
+      this._widthResizeActive = true;
 
       this.node.size[0] = Math.max(300, this._startNodeWidth + deltaX);
       this.node._ltxDirectorPreferredWidth = this.node.size[0];
@@ -5089,18 +5095,6 @@ class TimelineEditor {
       }
     }
     this.updateWidgetVisibility();
-
-    // Workaround: toggle display mode to force ComfyUI to refresh the node
-    if (this.displayModeWidget) {
-      const origVal = this.displayModeWidget.value;
-      const otherVal = origVal === "frames" ? "seconds" : "frames";
-
-      this.displayModeWidget.value = otherVal;
-      if (this.displayModeWidget.callback) this.displayModeWidget.callback(otherVal);
-
-      this.displayModeWidget.value = origVal;
-      if (this.displayModeWidget.callback) this.displayModeWidget.callback(origVal);
-    }
   }
 
   // Restore all settings widgets on the node.
@@ -5120,18 +5114,6 @@ class TimelineEditor {
       if (w.element) w.element.style.display = "";
     }
     this.updateWidgetVisibility();
-
-    // Workaround: toggle display mode to force ComfyUI to refresh the node
-    if (this.displayModeWidget) {
-      const origVal = this.displayModeWidget.value;
-      const otherVal = origVal === "frames" ? "seconds" : "frames";
-
-      this.displayModeWidget.value = otherVal;
-      if (this.displayModeWidget.callback) this.displayModeWidget.callback(otherVal);
-
-      this.displayModeWidget.value = origVal;
-      if (this.displayModeWidget.callback) this.displayModeWidget.callback(origVal);
-    }
   }
 
   _makeSettingRow(label, inputEl) {
