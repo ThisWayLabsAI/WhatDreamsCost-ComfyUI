@@ -6,7 +6,7 @@ const {
   ShotListParseError,
   exportShotList,
   parseShotList,
-} = require("../js/ltx_director_shot_script.js");
+} = require("../js/ltx_director_twl_shot_script.js");
 
 test("parseShotList parses a valid SHOT list", () => {
   const parsed = parseShotList(`GLOBAL: 1903 Kitty Hawk. Historical realism.
@@ -164,7 +164,7 @@ Second prompt.`);
 });
 
 test("no remaining user-facing Clip Script labels", () => {
-  const uiSource = fs.readFileSync(require.resolve("../js/ltx_director.js"), "utf8");
+  const uiSource = fs.readFileSync(require.resolve("../js/ltx_director_twl_shot_list_ui.js"), "utf8");
   const readmeSource = fs.readFileSync(require.resolve("../README.md"), "utf8");
   assert.doesNotMatch(uiSource, /Clip Script/i);
   assert.match(uiSource, /Shot List \(View\/Import\/Export\)/);
@@ -172,4 +172,13 @@ test("no remaining user-facing Clip Script labels", () => {
   assert.match(uiSource, /Export Shot List/);
   assert.match(uiSource, /SHOT 1 \\| 3s/);
   assert.doesNotMatch(readmeSource, /clip script/i);
+});
+
+test("LTX Director plugin seam has failure isolation and cleanup", () => {
+  const source = fs.readFileSync(require.resolve("../js/ltx_director.js"), "utf8");
+  assert.match(source, /function installLTXDirectorPlugin\(plugin, editor, node\)/);
+  assert.match(source, /console\.error\("\[LTXDirector\] plugin install failed:"/);
+  assert.match(source, /function removeLTXDirectorPluginHost\(editor\)/);
+  assert.match(source, /LTX_DIRECTOR_PLUGINS\.includes\(plugin\)/);
+  assert.match(source, /removeLTXDirectorPluginHost\(this\)/);
 });

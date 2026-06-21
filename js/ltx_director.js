@@ -59,6 +59,45 @@ function showWidget(w) {
 
 function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
 
+const LTX_DIRECTOR_PLUGIN_HOSTS = globalThis.LTXDirectorPluginHosts = globalThis.LTXDirectorPluginHosts || [];
+const LTX_DIRECTOR_PLUGINS = globalThis.LTXDirectorPlugins = globalThis.LTXDirectorPlugins || [];
+
+function installLTXDirectorPlugin(plugin, editor, node) {
+  try {
+    plugin(editor, node);
+  } catch (err) {
+    console.error("[LTXDirector] plugin install failed:", err);
+  }
+}
+
+function installLTXDirectorPlugins(editor, node) {
+  if (!editor || !node) return;
+  if (!editor._ltxDirectorPluginHost) {
+    editor._ltxDirectorPluginHost = { editor, node };
+    LTX_DIRECTOR_PLUGIN_HOSTS.push(editor._ltxDirectorPluginHost);
+  }
+  for (const plugin of LTX_DIRECTOR_PLUGINS) {
+    installLTXDirectorPlugin(plugin, editor, node);
+  }
+}
+
+function removeLTXDirectorPluginHost(editor) {
+  const host = editor?._ltxDirectorPluginHost;
+  if (!host) return;
+  const index = LTX_DIRECTOR_PLUGIN_HOSTS.indexOf(host);
+  if (index !== -1) LTX_DIRECTOR_PLUGIN_HOSTS.splice(index, 1);
+  delete editor._ltxDirectorPluginHost;
+}
+
+globalThis.registerLTXDirectorPlugin = globalThis.registerLTXDirectorPlugin || function (plugin) {
+  if (typeof plugin !== "function") return;
+  if (LTX_DIRECTOR_PLUGINS.includes(plugin)) return;
+  LTX_DIRECTOR_PLUGINS.push(plugin);
+  for (const host of LTX_DIRECTOR_PLUGIN_HOSTS) {
+    installLTXDirectorPlugin(plugin, host.editor, host.node);
+  }
+};
+
 // --- Modern Dark/Grey UI CSS (ComfyUI Match) ---
 const STYLES = `
   .pr-wrapper {
@@ -1252,6 +1291,13 @@ class TimelineEditor {
   }
 
   destroy() {
+    removeLTXDirectorPluginHost(this);
+    if (Array.isArray(this._ltxDirectorPluginCleanup)) {
+      for (const cleanup of this._ltxDirectorPluginCleanup) {
+        try { cleanup(); } catch (err) { console.error("[LTXDirector] plugin cleanup failed:", err); }
+      }
+      this._ltxDirectorPluginCleanup = [];
+    }
     cancelAnimationFrame(this._renderLoop);
     this.pauseAudio();
     window.removeEventListener("keydown", this.handleKeyDown, true);
@@ -11156,6 +11202,7 @@ app.registerExtension({
       const onNodeCreated = nodeType.prototype.onNodeCreated;
       nodeType.prototype.onNodeCreated = function () {
         if (onNodeCreated) onNodeCreated.apply(this, arguments);
+        this._ltxDirectorRemoved = false;
 
         if (!this.properties) this.properties = {};
         const DEFAULTS = {
@@ -11310,12 +11357,15 @@ app.registerExtension({
           return [Math.max(10, nodeWidth - 30), canvasH + propH + globalPropH + 160];
         };
 
-        setTimeout(() => {
+        this._ltxDirectorInitTimer = setTimeout(() => {
           try {
+            if (self._ltxDirectorRemoved) return;
             self._timelineEditor = new TimelineEditor(self, container, widget);
+            installLTXDirectorPlugins(self._timelineEditor, self);
           } catch (err) {
             console.error("[PromptRelay] timeline editor init failed:", err);
           }
+          self._ltxDirectorInitTimer = null;
         }, 0);
       };
 
@@ -11330,6 +11380,11 @@ app.registerExtension({
 
       const onRemoved = nodeType.prototype.onRemoved;
       nodeType.prototype.onRemoved = function () {
+        this._ltxDirectorRemoved = true;
+        if (this._ltxDirectorInitTimer) {
+          clearTimeout(this._ltxDirectorInitTimer);
+          this._ltxDirectorInitTimer = null;
+        }
         this._timelineEditor?.destroy();
         return onRemoved?.apply(this, arguments);
       };
