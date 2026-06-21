@@ -125,10 +125,10 @@ function parseShotList(text) {
 
         if (key === "width" || key === "height") {
           const parsed = parseInt(rawValue, 10);
-          if (!/^\d+$/.test(rawValue) || !Number.isFinite(parsed) || parsed <= 0) {
+          if (!/^\d+$/.test(rawValue) || !Number.isFinite(parsed) || parsed < 0) {
             errors.push({
               line: i + 1,
-              message: `Invalid VIDEO ${key}: must be a positive integer.`,
+              message: `Invalid VIDEO ${key}: must be a non-negative integer.`,
               declaration: line,
             });
             continue;
@@ -354,10 +354,10 @@ function formatVideoMetadata(video) {
   const height = Number(video.height);
   const totalDuration = Number(video.totalDuration);
 
-  if (Number.isFinite(width) && width > 0) {
+  if (Number.isFinite(width) && width >= 0) {
     lines.push(`width: ${Math.round(width)}`);
   }
-  if (Number.isFinite(height) && height > 0) {
+  if (Number.isFinite(height) && height >= 0) {
     lines.push(`height: ${Math.round(height)}`);
   }
   if (Number.isFinite(totalDuration) && totalDuration > 0) {

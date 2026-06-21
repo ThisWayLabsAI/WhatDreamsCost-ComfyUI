@@ -76,6 +76,17 @@ Prompt.`);
   assert.deepEqual(parsed.video, { width: 1280, height: 720, totalDuration: undefined });
 });
 
+test("parseShotList accepts zero VIDEO width and height", () => {
+  const parsed = parseShotList(`VIDEO:
+width: 0
+height: 0
+
+SHOT 1 | 2s
+Prompt.`);
+
+  assert.deepEqual(parsed.video, { width: 0, height: 0, totalDuration: undefined });
+});
+
 test("parseShotList reports a non-blocking total_duration mismatch warning", () => {
   const parsed = parseShotList(`VIDEO:
 total_duration: 40
@@ -163,13 +174,30 @@ Second prompt.`);
   assert.doesNotMatch(text, /\bCLIP\b/);
 });
 
+test("exportShotList serializes VIDEO width and height when set to zero", () => {
+  const text = exportShotList({
+    frameRate: 24,
+    segments: [{ start: 0, length: 24, prompt: "Prompt." }],
+    video: {
+      width: 0,
+      height: 0,
+    },
+  });
+
+  assert.match(text, /VIDEO:\nwidth: 0\nheight: 0\ntotal_duration: 1/);
+});
+
 test("no remaining user-facing Clip Script labels", () => {
   const uiSource = fs.readFileSync(require.resolve("../js/ltx_director_twl_shot_list_ui.js"), "utf8");
   const readmeSource = fs.readFileSync(require.resolve("../README.md"), "utf8");
   assert.doesNotMatch(uiSource, /Clip Script/i);
-  assert.match(uiSource, /Shot List \(View\/Import\/Export\)/);
-  assert.match(uiSource, /Import Shot List/);
-  assert.match(uiSource, /Export Shot List/);
+  assert.match(uiSource, /Shot List \(View\/Load\/Save\)/);
+  assert.match(uiSource, /Load \.txt/);
+  assert.match(uiSource, /Refresh from Timeline/);
+  assert.match(uiSource, /Save \.txt/);
+  assert.match(uiSource, /Apply Shot List/);
+  assert.doesNotMatch(uiSource, /Import Shot List/);
+  assert.doesNotMatch(uiSource, /confirm\(/);
   assert.match(uiSource, /SHOT 1 \\| 3s/);
   assert.doesNotMatch(readmeSource, /clip script/i);
 });
