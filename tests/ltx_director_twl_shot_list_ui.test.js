@@ -372,4 +372,5 @@ test("browser global API does not expose modal implementation helpers", () => {
   assert.equal(globalThis.LTXDirectorTwlShotListUi.openConfirmModal, undefined);
   assert.equal(globalThis.LTXDirectorTwlShotListUi.saveTextFile, undefined);
   assert.equal(typeof globalThis.LTXDirectorTwlShotListUi.applyShotListImport, "function");
+  assert.equal(typeof globalThis.LTXDirectorTwlConfirm.openConfirmModal, "function");
 });

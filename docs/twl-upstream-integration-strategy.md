@@ -84,6 +84,12 @@ These selected v1 TWL improvements have been ported through the plugin seam:
    - Updates existing timeline state and calls existing editor synchronization methods rather than replacing upstream timeline logic.
    - Ripples following main segments by the duration delta.
 
+3. Timeline Actions UI
+   - Adds a TWL-owned Timeline Actions container for ripple delete, ripple delete gaps, trim to last clip, reset timeline, and reset all.
+   - Extends segment right-click menus with additive TWL actions while preserving upstream Delete behavior.
+   - Supports Add Segment Before/After and Convert to Text/Image/Video using v2 `segment` terminology.
+   - Uses in-app confirmation behavior for destructive actions.
+
 ## Explicitly Deferred
 
 Do not port these unless reprioritized later:
@@ -92,7 +98,7 @@ Do not port these unless reprioritized later:
 - Prompt modal work from v1, because upstream v2 now supports resizing global and segment prompt text areas.
 - Old v1 example workflows, unless a specific example is needed.
 - Broad v1 changes to unrelated files such as `load_audio_ui.js`, `load_video_ui.js`, `multi_image_loader.js`, `patches.py`, or `prompt_relay.py` unless tied to a specific selected feature.
-- Timeline trim actions, ripple delete gaps / close gaps, context-menu conveniences, and other v1 UX items until reviewed against current v2 behavior and explicitly reprioritized.
+- Other v1 UX items not explicitly listed under Current TWL Add-ons until reviewed against current v2 behavior and explicitly reprioritized.
 
 ## Commit Strategy
 
@@ -101,6 +107,7 @@ Keep commits small and feature-scoped:
 - One commit for the plugin seam.
 - One commit for Shot List UI.
 - One commit for Segment Duration UI.
+- One commit for Timeline Actions UI.
 - One commit for README updates after the feature exists.
 
 This creates a patch stack that is easier to rebase onto future upstream updates.

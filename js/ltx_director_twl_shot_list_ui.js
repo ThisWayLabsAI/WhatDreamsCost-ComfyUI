@@ -693,6 +693,7 @@
   }
   if (typeof globalThis !== "undefined") {
     globalThis.LTXDirectorTwlShotListUi = publicApi;
+    globalThis.LTXDirectorTwlConfirm = globalThis.LTXDirectorTwlConfirm || { openConfirmModal };
     if (typeof globalThis.registerLTXDirectorPlugin === "function") {
       globalThis.registerLTXDirectorPlugin(installShotListUi);
     } else {

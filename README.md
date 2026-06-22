@@ -168,6 +168,7 @@ A Complete Timeline Editor For LTX 2.3. This is the sucessor of my previous node
 - **Text to Video:** Use text segments to create T2V videos. Compatible with all other features of the node.
 - **Shot List (TWL add-on):** View, import, and export timeline segments as plain text `SHOT` blocks. Imports can replace or append segments, and `GLOBAL:` text syncs through the current LTX Director global prompt behavior.
 - **Segment Duration Editing (TWL add-on):** Edit the selected segment duration directly. Following main segments ripple by the duration change so sequence flow is preserved.
+- **Timeline Actions (TWL add-on):** Use timeline-wide actions for ripple delete, closing gaps, trimming to the last clip, and reset flows. Segment right-click menus add ripple delete, add segment before/after, and convert-to-text/image/video actions while preserving upstream Delete behavior.
 
 **LTX Director 2.0 Update Main Features**
  - **Complete Video Support:** Edit Videos with AI all inside the node. Videos can be extended using a combination of prompts, keyframes, and audio. Trim, Split, and combine videos all within the timeline.

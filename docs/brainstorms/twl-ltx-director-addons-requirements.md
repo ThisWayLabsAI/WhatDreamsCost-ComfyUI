@@ -1,5 +1,5 @@
 ---
-date: 2026-06-20
+date: 2026-06-21
 topic: twl-ltx-director-addons
 ---
 
@@ -7,7 +7,7 @@ topic: twl-ltx-director-addons
 
 ## Summary
 
-Add a small LTX Director plugin seam and use it to deliver TWL-owned UI add-ons without spreading feature code through upstream-heavy files. The first execution slice prioritizes Shot List UI, then ripple-based segment duration editing, while preserving other v1 UX ideas as backlog candidates only. The immediate refinement slice focuses only on Shot List polish: file import into the modal, clearer apply language, real `.txt` export, and v1-style in-app confirmations instead of browser confirms.
+Add a small LTX Director plugin seam and use it to deliver TWL-owned UI add-ons without spreading feature code through upstream-heavy files. The first execution slice prioritizes Shot List UI, then ripple-based segment duration editing. The next reprioritized slice adds timeline actions from v1 through a TWL-owned UI container and right-click segment actions while preserving upstream v2's existing Delete behavior and terminology.
 
 ---
 
@@ -57,6 +57,20 @@ Future upstream updates are likely to keep touching the main LTX Director files.
   - **Outcome:** TWL behavior is easier to review, revert, and preserve during future upstream syncs.
   - **Covered by:** R1, R2, R17, R19
 
+- F5. Timeline-wide action
+  - **Trigger:** A user wants to clean up or reset timeline state without manually editing each segment.
+  - **Actors:** A1
+  - **Steps:** User finds the TWL Timeline Actions area near the timeline, chooses a timeline-wide action such as ripple delete gaps, trim to last clip, reset timeline, or reset all, confirms destructive actions when prompted, and the timeline updates.
+  - **Outcome:** Timeline cleanup or reset behavior completes predictably without moving or replacing upstream's default Delete control.
+  - **Covered by:** R20, R21, R22, R23, R24, R25, R26
+
+- F6. Right-click segment action
+  - **Trigger:** A user wants to operate on a specific segment in context.
+  - **Actors:** A1
+  - **Steps:** User right-clicks a segment, chooses Ripple Delete, Add Segment Before, Add Segment After, Convert to Text, Convert to Image, or Convert to Video, completes any confirmation or file selection step, and the selected segment or surrounding timeline updates.
+  - **Outcome:** Segment-local actions are available where the user is already working, while sequence flow and related prompt/audio/motion context are preserved.
+  - **Covered by:** R27, R28, R29, R30, R31, R32, R33, R34, R35
+
 ---
 
 ## Requirements
@@ -88,6 +102,26 @@ Future upstream updates are likely to keep touching the main LTX Director files.
 - R18. The first execution slice must not reintroduce v1 prompt modal behavior.
 - R19. Deferred v1 UI/UX items must be recorded as backlog candidates, not silently pulled into this execution slice.
 
+**Timeline Actions container**
+- R20. Users must have access to a TWL-owned Timeline Actions area injected near the timeline experience for timeline-wide actions.
+- R21. The Timeline Actions area must include Ripple Delete for removing the current selection with sequence-preserving ripple behavior.
+- R22. The Timeline Actions area must include Ripple Delete Gaps for closing timeline gaps without requiring manual segment dragging.
+- R23. The Timeline Actions area must include Trim to Last Clip so the timeline can be shortened to the end of the last clip or segment.
+- R24. The Timeline Actions area must include Reset Timeline for clearing timeline-specific content and action state without clearing the full node experience.
+- R25. The Timeline Actions area must include Reset All for broader full-node reset behavior.
+- R26. Destructive timeline-wide actions, especially Reset Timeline and Reset All, must require clear in-app confirmation before applying.
+
+**Right-click timeline actions**
+- R27. The existing upstream Delete action must remain in its current place and continue to behave as the upstream author intended.
+- R28. Segment right-click menus must include Ripple Delete as a separate action from the upstream Delete action.
+- R29. Segment right-click menus must include Add Segment Before and Add Segment After using the upstream author's `segment` terminology instead of v1's `shot` terminology.
+- R30. Add Segment Before and Add Segment After must ripple later main segments to make room so the sequence remains ordered.
+- R31. Segment right-click menus must include Convert to Text, Convert to Image, and Convert to Video where those actions are valid for the selected segment.
+- R32. Convert to Text must preserve the segment prompt and related audio and IC-LoRA video track content, while removing the selected segment's main visual media.
+- R33. Convert to Image must preserve the segment prompt and allow the user to choose replacement image media through the file picker.
+- R34. Convert to Video must preserve the segment prompt and allow the user to choose replacement video media through the file picker.
+- R35. Convert to Text must require confirmation because it removes visual media from the segment.
+
 ---
 
 ## Acceptance Examples
@@ -99,6 +133,12 @@ Future upstream updates are likely to keep touching the main LTX Director files.
 - AE5. **Covers R13.** Given Shot List import produces warnings, when the user applies the Shot List, the warning confirmation appears as an in-app modal rather than a browser confirmation dialog.
 - AE6. **Covers R14, R15, R16.** Given a selected segment followed by later segments, when the user increases the selected segment duration, the later segments move later so the sequence remains ordered.
 - AE7. **Covers R17, R18.** Given upstream v2's current global prompt and resizable prompt areas, when this execution slice is implemented, those behaviors remain governed by upstream v2 rather than v1 TWL modal/global-prompt behavior.
+- AE8. **Covers R20, R22, R23.** Given a timeline with gaps and multiple clips, when the user uses Timeline Actions to close gaps or trim to the last clip, the timeline updates without requiring manual drag cleanup.
+- AE9. **Covers R24, R25, R26.** Given a populated node, when the user chooses Reset Timeline or Reset All, the user sees an in-app confirmation before any destructive reset is applied.
+- AE10. **Covers R27, R28.** Given a selected segment, when the user opens the right-click menu, upstream Delete remains available and Ripple Delete appears as a distinct action.
+- AE11. **Covers R29, R30.** Given a segment followed by later main segments, when the user adds a segment before or after it, later main segments shift to make room and the UI labels use `segment` terminology.
+- AE12. **Covers R31, R32, R35.** Given an image or video segment with a prompt plus related audio or IC-LoRA video track content, when the user confirms Convert to Text, the prompt and related tracks remain while the main visual media is removed.
+- AE13. **Covers R31, R33, R34.** Given a text or media segment with a prompt, when the user chooses Convert to Image or Convert to Video and selects a file, the segment keeps its prompt and receives the chosen media type.
 
 ---
 
@@ -109,6 +149,9 @@ Future upstream updates are likely to keep touching the main LTX Director files.
 - Users can distinguish loading text into the modal from applying that text to the timeline.
 - Destructive or warning Shot List actions feel native to the app and do not rely on browser confirmation dialogs.
 - Users can adjust a segment's duration directly and see later segments ripple in a predictable way.
+- Users can perform common timeline cleanup actions without manual drag-and-delete sequences.
+- Users can use right-click segment actions for ripple delete, adjacent segment insertion, and media-type conversion without losing prompts or related audio / IC-LoRA video context.
+- Destructive timeline actions are clearly confirmed in-app before they change timeline or node state.
 - Future upstream syncs have fewer conflict points because TWL feature code is isolated behind a small seam.
 - A planning or implementation agent can identify what is required now, what is deferred, and what must not be changed.
 
@@ -120,7 +163,8 @@ Future upstream updates are likely to keep touching the main LTX Director files.
 - Prompt modal work from v1 is out of scope because upstream v2 already supports resizing prompt text areas.
 - Old v1 example workflows are out of scope unless separately reprioritized.
 - Broad v1 changes to unrelated files are out of scope unless tied to a specifically selected feature.
-- Timeline trim actions, ripple delete gaps / close gaps, context-menu conveniences, and other v1 UX items are deferred backlog candidates only.
+- Upstream's existing Delete action should not be replaced, moved, or redefined by this TWL slice.
+- Timeline actions not named in this requirements document remain deferred backlog candidates only.
 - The immediate Shot List polish refinement does not pull in adjacent v1 backlog items beyond `.txt` import, `.txt` export, clearer apply labeling, and reusable confirmation UI.
 
 ---
@@ -134,7 +178,11 @@ Future upstream updates are likely to keep touching the main LTX Director files.
 - Use a plugin seam: A small extension point carries less future merge cost than embedding TWL behavior directly into upstream-heavy editor code.
 - Support replace and append import: Users need both safe full replacement and additive workflows.
 - Ripple duration editing: Segment duration changes should preserve sequence flow instead of only resizing one isolated segment.
-- Keep backlog candidates explicit: Partial memory of v1 timeline actions should not become accidental implementation scope.
+- Timeline actions are now reprioritized: Ripple Delete, Ripple Delete Gaps, Trim to Last Clip, Reset Timeline, Reset All, Add Segment Before/After, and Convert to Text/Image/Video are the selected next v1-to-v2 migration slice.
+- Keep upstream Delete unchanged: TWL Ripple Delete should be additive rather than replacing the original author's Delete behavior.
+- Use segment terminology: v1's `shot` labels should become `segment` labels in v2-facing UI.
+- Preserve context during conversion: Convert-to-text removes main visual media but keeps prompt, audio, and IC-LoRA video track context; convert-to-image and convert-to-video keep the prompt while asking the user for media.
+- Keep backlog candidates explicit: Partial memory of other v1 timeline actions should not become accidental implementation scope.
 
 ---
 
@@ -145,6 +193,8 @@ Future upstream updates are likely to keep touching the main LTX Director files.
 - The `ltx-director-v1-twlai` branch remains a useful behavioral reference for file import into the old Shot Script modal and the custom confirmation modal pattern.
 - The current v2 LTX Director global prompt and prompt text-area behavior should be preserved.
 - Segment duration editing is expected to be achievable as UI behavior without backend Python changes unless planning discovers otherwise.
+- The existing plugin seam is expected to be sufficient for the next timeline-actions slice; additional direct edits to `js/ltx_director.js` should be treated as a planning concern that requires specific justification.
+- Existing v2 right-click menus and upload helpers are expected to be reusable by TWL add-ons unless planning discovers a seam limitation.
 
 ---
 
@@ -156,4 +206,7 @@ Future upstream updates are likely to keep touching the main LTX Director files.
 - [Affects R4-R9][Technical] Where should the Shot List entry point appear in the current v2 UI so it feels native and does not compete with upstream controls?
 - [Affects R13][Technical] What is the smallest reusable in-app confirmation modal pattern to carry forward from v1 without reintroducing broad v1 prompt-modal behavior?
 - [Affects R14-R16][Technical] How should ripple duration editing handle overlaps, gaps, locked media duration limits, and end-of-timeline growth in the current v2 timeline model?
-- [Affects R19][Needs review] Which v1 timeline action candidates should be captured later after comparing v1 behavior against current v2 behavior?
+- [Affects R20-R35][Technical] Can the confirmed timeline actions be added entirely through the existing plugin seam, or does the seam need a small additional hook for right-click menu extension?
+- [Affects R21, R22, R28, R30][Technical] How should ripple actions handle linked video/audio siblings, motion segments, existing gaps, and multi-selection in the current v2 timeline model?
+- [Affects R24, R25][Technical] What exact current v2 state belongs to Reset Timeline versus Reset All while preserving the user-facing distinction captured here?
+- [Affects R31-R35][Technical] Which existing v2 media upload and segment replacement helpers can be reused for Convert to Image and Convert to Video without duplicating upstream logic?
