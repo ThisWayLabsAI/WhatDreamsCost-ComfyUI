@@ -4,7 +4,7 @@ This will be a collection of free resources for ComfyUI.
 
 Hopefully it will make creating cool stuff easier!
 
-Also if you want to support this project or my channel I did make a Ko-fi due to popular demand lol (anything helps!)
+Also if you want to support this project or my channel, I did make a Ko-fi due to popular demand lol (anything helps!)
 
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/J5N221K0D5)
 
@@ -166,6 +166,9 @@ A Complete Timeline Editor For LTX 2.3. This is the sucessor of my previous node
 - **Custom Audio Support:** Import, trim, and combine your own audio clips in this node. Enabling custom audio is as simple as clicking 1 button. It is also compatible with every other feature in the node, include first/last frames, t2v, i2v, and prompt relay.
 - **Image to Video:** Part of the goal of this node was to make it easier to do everything, including Image to Video. It has built in resize functionality, and of course all the benifits of the prompt relay and custom audio integration.
 - **Text to Video:** Use text segments to create T2V videos. Compatible with all other features of the node.
+- **Shot List (TWL add-on):** View, import, and export timeline segments as plain text `SHOT` blocks. Imports can replace or append segments, and `GLOBAL:` text syncs through the current LTX Director global prompt behavior.
+- **Segment Duration Editing (TWL add-on):** Edit the selected segment duration directly. Following main segments ripple by the duration change so sequence flow is preserved.
+- **Timeline Actions (TWL add-on):** Use timeline-wide actions for ripple delete, closing gaps, trimming to the last clip, and reset flows. Segment right-click menus add ripple delete, add segment before/after, and convert-to-text/image/video actions while preserving upstream Delete behavior.
 
 **LTX Director 2.0 Update Main Features**
  - **Complete Video Support:** Edit Videos with AI all inside the node. Videos can be extended using a combination of prompts, keyframes, and audio. Trim, Split, and combine videos all within the timeline.
